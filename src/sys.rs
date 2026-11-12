@@ -56,54 +56,49 @@ fn confirm(title: &str, text: &str) -> bool {
     unsafe { MessageBoxW(None, &HSTRING::from(text), &HSTRING::from(title), MB_YESNO | MB_ICONQUESTION) == IDYES }
 }
 
-/// Folder the installer puts OTIUM into.
-pub fn install_dir() -> PathBuf {
-    std::env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_default()
-        .join("Programs")
-        .join("OTIUM")
+fn known_folder(id: &windows::core::GUID) -> Option<PathBuf> {
+    use windows::Win32::{System::Com::CoTaskMemFree, UI::Shell::{SHGetKnownFolderPath, KF_FLAG_DEFAULT}};
+    unsafe {
+        let p = SHGetKnownFolderPath(id, KF_FLAG_DEFAULT, None).ok()?;
+        let s = p.to_string().ok();
+        CoTaskMemFree(Some(p.0 as *const _));
+        s.map(PathBuf::from)
+    }
 }
 
-/// `otium.exe --uninstall`, registered as the uninstall command by the installer.
+/// `otium-browser.exe --uninstall`, registered as the uninstall command by the installer.
 pub fn uninstall() {
-    if !confirm("Удаление OTIUM", "Удалить OTIUM с этого компьютера?") {
+    use windows::Win32::UI::Shell::{FOLDERID_Desktop, FOLDERID_Programs};
+    if !confirm("Удаление OTIUM Browser", "Удалить OTIUM Browser с этого компьютера?") {
         return;
     }
     let keep = confirm(
-        "Удаление OTIUM",
+        "Удаление OTIUM Browser",
         "Сохранить профиль (вкладки, пароли, историю, расширения)?\n\nДа — оставить, Нет — удалить всё.",
     );
-    let appdata = std::env::var_os("APPDATA").map(PathBuf::from).unwrap_or_default();
-    let home = std::env::var_os("USERPROFILE").map(PathBuf::from).unwrap_or_default();
-    let _ = std::fs::remove_file(appdata.join(r"Microsoft\Windows\Start Menu\Programs\OTIUM.lnk"));
-    let _ = std::fs::remove_file(home.join(r"Desktop\OTIUM.lnk"));
+    for folder in [FOLDERID_Desktop, FOLDERID_Programs] {
+        if let Some(d) = known_folder(&folder) {
+            let _ = std::fs::remove_file(d.join("OTIUM Browser.lnk"));
+        }
+    }
     let _ = std::process::Command::new("reg")
-        .args(["delete", r"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\OTIUM", "/f"])
+        .args(["delete", r"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\OTIUM Browser", "/f"])
         .output();
     if !keep {
         let _ = std::fs::remove_dir_all(crate::util::data_dir());
     }
-    // The running exe can't delete itself: let cmd remove the install folder after we exit.
-    // Only ever the installer's own folder, never e.g. a development build directory.
-    let dir = install_dir();
-    let running_from_install = std::env::current_exe()
-        .ok()
-        .and_then(|e| e.parent().map(|p| p.to_path_buf()))
-        .is_some_and(|p| p.eq_ignore_ascii_case_path(&dir));
-    if running_from_install {
-        let script = format!("ping 127.0.0.1 -n 3 >nul & rmdir /s /q \"{}\"", dir.display());
-        let _ = std::process::Command::new("cmd").args(["/c", &script]).spawn();
+    // The running exe can't delete itself: cmd removes our two files and then the folder,
+    // and only if the folder is empty afterwards. Only folders made by the installer
+    // (they carry the marker file) are touched — never e.g. a development build directory.
+    if let Some(dir) = std::env::current_exe().ok().and_then(|e| e.parent().map(|p| p.to_path_buf())) {
+        if dir.join("otium-browser.install").exists() {
+            let d = dir.display();
+            let script = format!(
+                "ping 127.0.0.1 -n 3 >nul & del /f /q \"{d}\\otium-browser.exe\" \"{d}\\otium-browser.install\" & rmdir \"{d}\""
+            );
+            use std::os::windows::process::CommandExt;
+            let _ = std::process::Command::new("cmd").arg("/c").raw_arg(&script).creation_flags(0x0800_0000).spawn();
+        }
     }
-    message_box("OTIUM", "OTIUM удалён.", false);
-}
-
-trait PathEqExt {
-    fn eq_ignore_ascii_case_path(&self, other: &std::path::Path) -> bool;
-}
-
-impl PathEqExt for PathBuf {
-    fn eq_ignore_ascii_case_path(&self, other: &std::path::Path) -> bool {
-        self.to_string_lossy().eq_ignore_ascii_case(&other.to_string_lossy())
-    }
+    message_box("OTIUM Browser", "OTIUM Browser удалён.", false);
 }
