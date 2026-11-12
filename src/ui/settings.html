@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Настройки</title>
+<meta name="color-scheme" content="dark">
+<style>
+  :root { --a1: #8b5cf6; --a2: #22d3ee; --a3: #f472b6; --text: #ececf3; --muted: #8a8a9c; --faint: #5c5c6c; --line: rgba(255,255,255,.07); --card: rgba(255,255,255,.035); }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; scroll-padding-top: 28px; }
+  body {
+    background:
+      radial-gradient(900px 600px at 100% -10%, color-mix(in srgb, var(--a1) 14%, transparent), transparent 60%),
+      radial-gradient(700px 500px at -10% 110%, color-mix(in srgb, var(--a2) 8%, transparent), transparent 60%),
+      #0c0c12;
+    background-attachment: fixed;
+    color: var(--text); min-height: 100vh;
+    font: 14px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; }
+  svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  ::-webkit-scrollbar { width: 10px; } ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.08); border-radius: 5px; border: 3px solid transparent; background-clip: padding-box; }
+
+  .wrap { display: grid; grid-template-columns: 220px minmax(0, 720px); gap: 48px; justify-content: center; padding: 40px 32px 80px; }
+  aside { position: sticky; top: 40px; align-self: start; display: flex; flex-direction: column; gap: 2px; }
+  aside h1 { font-size: 26px; font-weight: 600; letter-spacing: -.02em; margin: 0 0 18px 12px; }
+  aside a { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 12px; border-radius: 9px; color: var(--muted); text-decoration: none; transition: background .15s, color .15s; position: relative; }
+  aside a:hover { background: rgba(255,255,255,.05); color: var(--text); }
+  aside a.on { background: rgba(255,255,255,.08); color: var(--text); }
+  aside a.on::before { content: ""; position: absolute; left: -6px; top: 10px; bottom: 10px; width: 3px; border-radius: 3px; background: linear-gradient(var(--a1), var(--a2)); }
+  aside .brand { margin: 22px 0 0 12px; font-weight: 800; letter-spacing: .4em; font-size: 11px; background: linear-gradient(120deg, var(--a1), var(--a2), var(--a3)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  section { margin-bottom: 40px; animation: rise .5s cubic-bezier(.2,.8,.2,1) both; }
+  section:nth-child(2) { animation-delay: .04s; } section:nth-child(3) { animation-delay: .08s; } section:nth-child(4) { animation-delay: .12s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+  section h2 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin: 0 0 12px 4px; }
+  .card { background: var(--card); border-radius: 16px; box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+  .item { display: flex; align-items: center; gap: 16px; padding: 16px 18px; min-height: 64px; }
+  .item + .item { border-top: 1px solid var(--line); }
+  .item .txt { flex: 1; min-width: 0; }
+  .item .ttl { font-weight: 500; }
+  .item .sub { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .item.col { flex-direction: column; align-items: stretch; }
+
+  /* toggle */
+  .sw { position: relative; width: 42px; height: 24px; flex: none; }
+  .sw input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
+  .sw i { position: absolute; inset: 0; border-radius: 12px; background: rgba(255,255,255,.12); transition: background .25s; }
+  .sw i::after { content: ""; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35); transition: transform .25s cubic-bezier(.3,1.4,.5,1); }
+  .sw input:checked + i { background: linear-gradient(120deg, var(--a1), var(--a2)); }
+  .sw input:checked + i::after { transform: translateX(18px); }
+  .sw input:focus-visible + i { box-shadow: 0 0 0 3px color-mix(in srgb, var(--a1) 35%, transparent); }
+
+  /* segmented */
+  .seg { display: inline-flex; padding: 3px; border-radius: 10px; background: rgba(0,0,0,.3); box-shadow: inset 0 0 0 1px var(--line); flex: none; }
+  .seg button { height: 30px; padding: 0 14px; border-radius: 8px; color: var(--muted); font-size: 13px; transition: background .2s, color .2s; }
+  .seg button:hover { color: var(--text); }
+  .seg button.on { background: rgba(255,255,255,.1); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+
+  /* layout picker */
+  .layouts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 18px; }
+  .lay { border-radius: 14px; padding: 12px; background: rgba(0,0,0,.25); box-shadow: inset 0 0 0 1px var(--line); text-align: left; transition: box-shadow .2s, transform .2s; }
+  .lay:hover { transform: translateY(-2px); }
+  .lay.on { box-shadow: inset 0 0 0 2px var(--a1), 0 10px 30px color-mix(in srgb, var(--a1) 18%, transparent); }
+  .lay .pv { height: 110px; border-radius: 9px; background: #0a0a0e; position: relative; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); }
+  .lay .pv * { position: absolute; border-radius: 4px; }
+  .lay b { display: block; margin-top: 10px; font-weight: 500; }
+  .lay small { color: var(--muted); font-size: 12px; }
+  .pv .pg { background: linear-gradient(140deg, #1d1b29, #15151d); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
+  .pv .tb { background: rgba(255,255,255,.08); height: 8px; }
+  .pv .tb.on { background: linear-gradient(90deg, var(--a1), var(--a2)); opacity: .8; }
+  .pv .om { background: rgba(255,255,255,.06); height: 10px; border-radius: 5px; }
+  .pv .dot { width: 6px; height: 6px; border-radius: 2px; background: rgba(255,255,255,.25); }
+
+  /* accents */
+  .accents { display: flex; gap: 12px; flex-wrap: wrap; }
+  .acc { display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--muted); font-size: 11.5px; }
+  .acc span { width: 40px; height: 40px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); transition: transform .2s, box-shadow .2s; }
+  .acc:hover span { transform: scale(1.08); }
+  .acc.on { color: var(--text); }
+  .acc.on span { box-shadow: 0 0 0 2px #0c0c12, 0 0 0 4px var(--text); }
+
+  /* engines */
+  .engines { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .eng { height: 44px; border-radius: 11px; background: rgba(0,0,0,.25); box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); display: flex; align-items: center; gap: 10px; padding: 0 14px; transition: box-shadow .2s, color .2s; }
+  .eng:hover { color: var(--text); }
+  .eng.on { color: var(--text); box-shadow: inset 0 0 0 2px var(--a1); }
+  .eng i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.2); flex: none; }
+  .eng.on i { background: linear-gradient(120deg, var(--a1), var(--a2)); box-shadow: 0 0 8px var(--a1); }
+  .field { height: 40px; width: 100%; border-radius: 10px; border: 0; outline: 0; padding: 0 12px; background: rgba(0,0,0,.35); color: var(--text); font: inherit; box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .2s; margin-top: 10px; }
+  .field:focus { box-shadow: inset 0 0 0 1px var(--a1), 0 0 0 3px color-mix(in srgb, var(--a1) 20%, transparent); }
+  .field.bad { box-shadow: inset 0 0 0 1px #f87171; }
+
+  .btn { height: 36px; padding: 0 16px; border-radius: 10px; background: rgba(255,255,255,.07); transition: background .15s, filter .15s; flex: none; }
+  .btn:hover { background: rgba(255,255,255,.12); }
+  .btn.pri { background: linear-gradient(120deg, var(--a1), var(--a2)); color: #fff; font-weight: 600; }
+  .btn.pri:hover { filter: brightness(1.1); }
+  .btn.danger { color: #f87171; }
+  .btn.danger:hover { background: rgba(248,113,113,.12); }
+
+  .banner { display: none; align-items: center; gap: 14px; margin: 0 0 14px; padding: 14px 16px; border-radius: 14px;
+    background: color-mix(in srgb, var(--a1) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--a1) 40%, transparent); }
+  .banner.show { display: flex; animation: rise .3s; }
+  .banner .txt { flex: 1; }
+
+  .keys { display: grid; grid-template-columns: 1fr auto; gap: 10px 18px; padding: 18px; font-size: 13px; color: var(--muted); }
+  kbd { font: 12px "Segoe UI", sans-serif; padding: 2px 8px; border-radius: 6px; background: rgba(255,255,255,.07); color: var(--text); box-shadow: inset 0 -1px 0 rgba(255,255,255,.08); }
+  .about { display: flex; align-items: center; gap: 16px; padding: 20px 18px; }
+  .ring { width: 44px; height: 44px; border-radius: 50%; background: conic-gradient(from 200deg, var(--a1), var(--a2), var(--a3), var(--a1)); -webkit-mask: radial-gradient(circle, transparent 12px, #000 13px); flex: none; }
+  .form { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; max-width: 420px; }
+  .form .field { margin-top: 0; }
+  .form .seg { align-self: flex-start; }
+  .form .btn { align-self: flex-start; }
+  .warn { font-size: 12px; color: #fbbf24; }
+  .avatar { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 18px; font-weight: 700; color: #fff; background: linear-gradient(135deg, var(--a1), var(--a2)); flex: none; }
+  .inrow { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+  .inrow .field { margin-top: 0; flex: 1; }
+  .link { color: var(--a2); text-decoration: underline; cursor: pointer; font-size: inherit; }
+  a { color: var(--a2); }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .chips span { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px 0 10px; border-radius: 8px; background: rgba(255,255,255,.06); font-size: 12.5px; }
+  .chips button { width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center; color: var(--muted); }
+  .chips button:hover { background: rgba(255,255,255,.1); color: var(--text); }
+  .ext { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-top: 1px solid var(--line); }
+  .ext img, .ext .noimg { width: 32px; height: 32px; border-radius: 8px; flex: none; }
+  .ext .noimg { background: rgba(255,255,255,.06); }
+  .ext .txt { flex: 1; min-width: 0; }
+  .ext .ttl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ext .mini { height: 30px; padding: 0 10px; font-size: 12.5px; }
+  .busy { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.2); border-top-color: var(--a2); animation: spin .7s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .modal { position: fixed; inset: 0; background: rgba(5,5,8,.6); backdrop-filter: blur(6px); display: grid; place-items: center; z-index: 20; }
+  .modal form { width: min(420px, 92vw); padding: 22px; border-radius: 18px; background: #1a1a22; box-shadow: 0 30px 80px rgba(0,0,0,.6), inset 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: 12px; animation: rise .25s; }
+  .modal h3 { font-size: 16px; font-weight: 600; }
+  .modal .row { display: flex; gap: 8px; justify-content: flex-end; }
+  .toast.err { box-shadow: 0 10px 30px rgba(0,0,0,.5), inset 0 0 0 1px rgba(248,113,113,.5); color: #fca5a5; }
+  .toast { position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 20px); opacity: 0; padding: 10px 16px; border-radius: 12px; background: rgba(30,30,40,.95);
+    box-shadow: 0 10px 30px rgba(0,0,0,.5), inset 0 0 0 1px var(--line); transition: opacity .25s, transform .25s; pointer-events: none; font-size: 13px; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (max-width: 860px) { .wrap { grid-template-columns: 1fr; gap: 20px; } aside { position: static; flex-direction: row; flex-wrap: wrap; } aside h1 { width: 100%; } aside .brand { display: none; } .engines { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <aside id="nav">
+    <h1>Настройки</h1>
+    <a href="#look"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="3"/><path d="M9.5 5v14"/></svg>Внешний вид</a>
+    <a href="#search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>Поиск</a>
+    <a href="#account"><svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1-4 4-5.5 7-5.5s6 1.5 7 5.5"/></svg>Аккаунт</a>
+    <a href="#shield"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>Блокировщик</a>
+    <a href="#extensions"><svg viewBox="0 0 24 24"><path d="M9 4h3v2a2 2 0 1 0 4 0V4h3v5h-2a2 2 0 1 0 0 4h2v7h-5v-2a2 2 0 1 0-4 0v2H5v-5h2a2 2 0 1 0 0-4H5V4z"/></svg>Расширения</a>
+    <a href="#sites"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>Сайты</a>
+    <a href="#newtab"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>Новая вкладка</a>
+    <a href="#system"><svg viewBox="0 0 24 24"><path d="M13 3L5 14h6l-1 7 8-11h-6z"/></svg>Производительность</a>
+    <a href="#privacy"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg>Конфиденциальность</a>
+    <a href="#about"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/></svg>О браузере</a>
+    <div class="brand">OTIUM</div>
+  </aside>
+
+  <main>
+    <div class="banner" id="restartBanner">
+      <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></svg>
+      <div class="txt"><b>Нужен перезапуск</b><div class="sub" style="color:var(--muted);font-size:12.5px">Тёмный режим для сайтов включится после перезапуска OTIUM. Вкладки сохранятся.</div></div>
+      <button class="btn pri" id="restart">Перезапустить</button>
+    </div>
+
+    <section id="look">
+      <h2>Внешний вид</h2>
+      <div class="card">
+        <div class="layouts">
+          <button class="lay" data-layout="sidebar">
+            <div class="pv">
+              <div class="dot" style="left:8px;top:8px"></div><div class="dot" style="left:17px;top:8px"></div>
+              <div class="om" style="left:8px;top:22px;width:46px"></div>
+              <div class="tb on" style="left:8px;top:40px;width:46px"></div>
+              <div class="tb" style="left:8px;top:54px;width:40px"></div>
+              <div class="tb" style="left:8px;top:68px;width:44px"></div>
+              <div class="pg" style="left:62px;top:6px;right:6px;bottom:6px"></div>
+            </div>
+            <b>Боковая панель</b><small>Вертикальные вкладки, максимум места для страниц</small>
+          </button>
+          <button class="lay" data-layout="classic">
+            <div class="pv">
+              <div class="tb on" style="left:8px;top:8px;width:46px"></div>
+              <div class="tb" style="left:58px;top:8px;width:46px"></div>
+              <div class="tb" style="left:108px;top:8px;width:34px"></div>
+              <div class="dot" style="right:24px;top:9px"></div><div class="dot" style="right:14px;top:9px"></div><div class="dot" style="right:4px;top:9px"></div>
+              <div class="om" style="left:30px;right:20px;top:22px"></div>
+              <div class="pg" style="left:6px;top:38px;right:6px;bottom:6px"></div>
+            </div>
+            <b>Classic View</b><small>Вкладки сверху, кнопки окна справа</small>
+          </button>
+        </div>
+        <div class="item col">
+          <div class="txt"><div class="ttl">Акцентный цвет</div><div class="sub">Цвет подсветки, градиентов и фона</div></div>
+          <div class="accents" id="accents"></div>
+        </div>
+        <div class="item">
+          <div class="txt"><div class="ttl">Плавающая страница</div><div class="sub">Отступы и тень вокруг страницы. Выключите, чтобы сайт занимал всё место</div></div>
+          <label class="sw"><input type="checkbox" data-key="floating"><i></i></label>
+        </div>
+      </div>
+    </section>
+
+    <section id="search">
+      <h2>Поиск и адресная строка</h2>
+      <div class="card">
+        <div class="item col">
+          <div class="txt"><div class="ttl">Поисковая система</div><div class="sub">Используется в адресной строке и на новой вкладке</div></div>
+          <div class="engines" id="engines"></div>
+          <input class="field" id="customUrl" placeholder="https://example.com/search?q=%s — %s заменяется на запрос" spellcheck="false" style="display:none">
+        </div>
+        <div class="item">
+          <div class="txt"><div class="ttl">Поисковые подсказки</div><div class="sub">Предлагать запросы от поисковика, пока вы печатаете. История и закладки подсказываются всегда — локально</div></div>
+          <label class="sw"><input type="checkbox" data-key="suggest_remote"><i></i></label>
+        </div>
+        <div class="item">
+          <div class="txt"><div class="ttl">Показывать полный адрес</div><div class="sub">Вместо «github.com/rust» показывать «https://github.com/rust»</div></div>
+          <label class="sw"><input type="checkbox" data-key="full_url"><i></i></label>
+        </div>
+      </div>
+    </section>
+
+    <section id="account">
+      <h2>Аккаунт и резервная копия</h2>
+      <div class="card" id="accNone">
+        <div class="item col">
+          <div class="txt"><div class="ttl">Локальный аккаунт OTIUM</div>
+            <div class="sub">Защитите профиль паролем, PIN-кодом или секретным словом. С ним можно выгрузить всё — входы в аккаунты, сохранённые пароли, историю, закладки, расширения и настройки — в один зашифрованный файл и восстановить на другом компьютере или после переустановки Windows. Аккаунт хранится только на этом компьютере, никуда не отправляется.</div></div>
+          <div class="form">
+            <input class="field" id="accName" maxlength="40" placeholder="Имя, например «Артём»">
+            <div class="seg" id="accKind"><button data-v="password" class="on">Пароль</button><button data-v="pin">PIN-код</button><button data-v="word">Секретное слово</button></div>
+            <input class="field" id="accSecret" type="password" placeholder="Пароль (минимум 6 символов)" autocomplete="new-password">
+            <input class="field" id="accSecret2" type="password" placeholder="Повторите" autocomplete="new-password">
+            <div class="warn">Запомните его: без него файл резервной копии не открыть — восстановить забытый пароль невозможно.</div>
+            <button class="btn pri" id="accCreate">Создать аккаунт</button>
+          </div>
+        </div>
+      </div>
+      <div class="card" id="accSome" style="display:none">
+        <div class="about"><div class="avatar" id="accAvatar"></div><div style="flex:1"><b style="font-size:16px" id="accTitle"></b><div class="sub" style="color:var(--muted)" id="accSub"></div></div>
+          <button class="btn danger" id="accDelete">Удалить аккаунт</button></div>
+        <div class="item">
+          <div class="txt"><div class="ttl">Экспорт профиля</div><div class="sub">Сохранит входы, пароли, cookies, историю, закладки, расширения и настройки в файл <b>.otium</b>, зашифрованный вашим секретом (Argon2id + XChaCha20-Poly1305). OTIUM перезапустится, вкладки вернутся.</div></div>
+          <button class="btn pri" id="vExport">Экспортировать</button>
+        </div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <div class="item">
+          <div class="txt"><div class="ttl">Восстановить из файла</div><div class="sub">Заменит текущий профиль профилем из файла .otium. Текущий сохранится рядом как резервная копия.</div></div>
+          <button class="btn" id="vImport">Выбрать файл…</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="shield">
+      <h2>Блокировщик рекламы</h2>
+      <div class="card">
+        <div class="item">
+          <div class="txt"><div class="ttl">OTIUM Shield</div><div class="sub" id="shieldSub">Блокирует рекламу, трекеры и счётчики ещё до загрузки — страницы открываются быстрее. Движок adblock-rust (как в Brave)</div></div>
+          <label class="sw"><input type="checkbox" data-key="shield"><i></i></label>
+        </div>
+        <div class="item">
+          <div class="txt"><div class="ttl">Списки фильтров</div><div class="sub" id="shieldLists"></div></div>
+          <button class="btn" id="shieldUpd">Обновить</button>
+        </div>
+        <div class="item col" id="allowBox">
+          <div class="txt"><div class="ttl">Исключения</div><div class="sub">Сайты, где блокировщик выключен. Добавить сайт — кнопка щита в адресной строке</div></div>
+          <div class="chips" id="allow"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="extensions">
+      <h2>Расширения</h2>
+      <div class="card">
+        <div class="item col">
+          <div class="txt"><div class="ttl">Установить из Chrome Web Store</div><div class="sub">Откройте страницу расширения в <a href="https://chromewebstore.google.com" target="_blank">Chrome Web Store</a>, скопируйте адрес и вставьте сюда</div></div>
+          <div class="inrow"><input class="field" id="extUrl" placeholder="https://chromewebstore.google.com/detail/…" spellcheck="false"><button class="btn pri" id="extInstall">Установить</button></div>
+          <div class="sub" style="margin-top:8px;color:var(--faint)">Работают расширения на Manifest V3: uBlock Origin Lite, AdGuard, Bitwarden, Dark Reader, переводчики и т. п. Старые MV2-расширения (классический uBlock Origin) Chromium больше не поддерживает. <button class="link" id="extFolder">Загрузить распакованное…</button></div>
+        </div>
+        <div id="extList"></div>
+      </div>
+    </section>
+
+    <section id="sites">
+      <h2>Сайты</h2>
+      <div class="card">
+        <div class="item">
+          <div class="txt"><div class="ttl">Тема сайтов</div><div class="sub">Какую тему просить у сайтов, которые умеют светлую и тёмную</div></div>
+          <div class="seg" id="siteTheme">
+            <button data-v="auto">Системная</button><button data-v="dark">Тёмная</button><button data-v="light">Светлая</button>
+          </div>
+        </div>
+        <div class="item">
+          <div class="txt"><div class="ttl">Тёмный режим для всех сайтов</div><div class="sub">Принудительно затемняет светлые сайты, даже если у них нет своей тёмной темы</div></div>
+          <label class="sw"><input type="checkbox" data-key="force_dark"><i></i></label>
+        </div>
+      </div>
+    </section>
+
+    <section id="newtab">
+      <h2>Новая вкладка</h2>
+      <div class="card">
+        <div class="item"><div class="txt"><div class="ttl">Часы</div></div><label class="sw"><input type="checkbox" data-key="nt_clock"><i></i></label></div>
+        <div class="item"><div class="txt"><div class="ttl">Приветствие и дата</div></div><label class="sw"><input type="checkbox" data-key="nt_greeting"><i></i></label></div>
+        <div class="item"><div class="txt"><div class="ttl">Быстрые плитки</div><div class="sub">Редактируются прямо на новой вкладке: наведите на плитку или нажмите «Плитки»</div></div><label class="sw"><input type="checkbox" data-key="nt_tiles"><i></i></label></div>
+        <div class="item"><div class="txt"><div class="ttl">Подсказки с горячими клавишами</div></div><label class="sw"><input type="checkbox" data-key="nt_hints"><i></i></label></div>
+        <div class="item"><div class="txt"><div class="ttl">Анимированный фон</div><div class="sub">Выключите для экономии батареи</div></div><label class="sw"><input type="checkbox" data-key="nt_motion"><i></i></label></div>
+        <div class="item"><div class="txt"><div class="ttl">Плитки по умолчанию</div><div class="sub">Вернуть исходный набор плиток</div></div><button class="btn" id="resetTiles">Сбросить</button></div>
+      </div>
+    </section>
+
+    <section id="system">
+      <h2>Запуск и производительность</h2>
+      <div class="card">
+        <div class="item"><div class="txt"><div class="ttl">Восстанавливать вкладки</div><div class="sub">Открывать вкладки прошлого сеанса при запуске</div></div><label class="sw"><input type="checkbox" data-key="restore_session"><i></i></label></div>
+        <div class="item"><div class="txt"><div class="ttl">Усыплять фоновые вкладки</div><div class="sub">Неактивные вкладки освобождают память, пока вы на них не вернётесь</div></div><label class="sw"><input type="checkbox" data-key="sleep_tabs"><i></i></label></div>
+      </div>
+    </section>
+
+    <section id="privacy">
+      <h2>Конфиденциальность</h2>
+      <div class="card">
+        <div class="item"><div class="txt"><div class="ttl">Очистить данные браузера</div><div class="sub">Удалит cookies, кэш, историю и сохранённые данные сайтов. Вы выйдете из всех аккаунтов</div></div><button class="btn danger" id="clearData">Очистить</button></div>
+      </div>
+    </section>
+
+    <section id="about">
+      <h2>О браузере</h2>
+      <div class="card">
+        <div class="about"><div class="ring"></div><div><b style="font-size:16px">OTIUM</b><div class="sub" style="color:var(--muted)" id="ver"></div></div></div>
+        <div class="keys" style="border-top:1px solid var(--line)">
+          <span>Новая вкладка</span><span><kbd>Ctrl</kbd> <kbd>T</kbd></span>
+          <span>Закрыть вкладку</span><span><kbd>Ctrl</kbd> <kbd>W</kbd></span>
+          <span>Адресная строка</span><span><kbd>Ctrl</kbd> <kbd>L</kbd></span>
+          <span>Следующая / предыдущая вкладка</span><span><kbd>Ctrl</kbd> <kbd>Tab</kbd></span>
+          <span>Перейти к вкладке 1–9</span><span><kbd>Ctrl</kbd> <kbd>1…9</kbd></span>
+          <span>Вернуть закрытую вкладку</span><span><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>T</kbd></span>
+          <span>Приватная вкладка</span><span><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>N</kbd></span>
+          <span>В закладки</span><span><kbd>Ctrl</kbd> <kbd>D</kbd></span>
+          <span>История / Закладки / Загрузки</span><span><kbd>Ctrl</kbd> <kbd>H</kbd> · <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>O</kbd> · <kbd>Ctrl</kbd> <kbd>J</kbd></span>
+          <span>Масштаб</span><span><kbd>Ctrl</kbd> <kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd></span>
+          <span>Поиск на странице</span><span><kbd>Ctrl</kbd> <kbd>F</kbd></span>
+          <span>Свернуть боковую панель</span><span><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>B</kbd></span>
+          <span>Настройки</span><span><kbd>Ctrl</kbd> <kbd>,</kbd></span>
+          <span>Полноэкранный режим</span><span><kbd>F11</kbd></span>
+          <span>Инструменты разработчика</span><span><kbd>F12</kbd></span>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+  window.OTIUM = /*__OTIUM__*/null;
+  const $ = (s) => document.getElementById(s);
+  const send = (o) => window.otiumSend && window.otiumSend(o);
+  let S = null, toastT;
+  const toast = (msg) => { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1600); };
+  const set = (patch, msg) => { Object.assign(S.settings, patch); render(); send({ cmd: 'set', patch }); toast(msg || 'Сохранено'); };
+
+  // toggles
+  document.querySelectorAll('[data-key]').forEach((el) => el.addEventListener('change', () => set({ [el.dataset.key]: el.checked })));
+  // layout
+  document.querySelectorAll('[data-layout]').forEach((b) => b.addEventListener('click', () => set({ layout: b.dataset.layout })));
+  // site theme
+  $('siteTheme').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) set({ site_theme: b.dataset.v }); });
+  // engines
+  $('engines').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-engine]'); if (!b) return;
+    if (b.dataset.engine === 'custom') { S.settings.search = 'custom'; render(); $('customUrl').focus(); if (/%s/.test($('customUrl').value)) set({ search: 'custom' }); return; }
+    set({ search: b.dataset.engine });
+  });
+  $('customUrl').addEventListener('change', () => {
+    const v = $('customUrl').value.trim();
+    const ok = /^https?:\/\/.+%s/.test(v);
+    $('customUrl').classList.toggle('bad', !ok);
+    if (ok) set({ search: 'custom', search_custom: v });
+    else toast('Адрес должен начинаться с http(s):// и содержать %s');
+  });
+  $('accents').addEventListener('click', (e) => { const b = e.target.closest('[data-accent]'); if (b) set({ accent: b.dataset.accent }); });
+  $('resetTiles').addEventListener('click', () => set({ tiles: S.defaultTiles }, 'Плитки сброшены'));
+  $('clearData').addEventListener('click', () => {
+    if (confirm('Очистить все данные браузера? Вы выйдете из всех аккаунтов на сайтах.')) { send({ cmd: 'clear_data' }); toast('Данные очищены'); }
+  });
+  $('restart').addEventListener('click', () => send({ cmd: 'restart' }));
+
+  function render() {
+    const s = S.settings, r = document.documentElement.style;
+    ['--a1', '--a2', '--a3'].forEach((v, i) => r.setProperty(v, S.accent[i]));
+    document.querySelectorAll('[data-key]').forEach((el) => { el.checked = !!s[el.dataset.key]; });
+    document.querySelectorAll('[data-layout]').forEach((b) => b.classList.toggle('on', b.dataset.layout === s.layout));
+    document.querySelectorAll('#siteTheme button').forEach((b) => b.classList.toggle('on', b.dataset.v === s.site_theme));
+    $('engines').innerHTML = S.engines.concat([{ id: 'custom', name: 'Свой…' }])
+      .map((e) => `<button class="eng${e.id === s.search ? ' on' : ''}" data-engine="${e.id}"><i></i>${e.name}</button>`).join('');
+    $('customUrl').style.display = s.search === 'custom' ? '' : 'none';
+    if (document.activeElement !== $('customUrl')) $('customUrl').value = s.search_custom || '';
+    $('accents').innerHTML = S.accents.map((a) =>
+      `<button class="acc${a.id === s.accent ? ' on' : ''}" data-accent="${a.id}"><span style="background:conic-gradient(from 200deg,${a.colors[0]},${a.colors[1]},${a.colors[2]},${a.colors[0]})"></span>${a.name}</button>`).join('');
+    $('restartBanner').classList.toggle('show', !!s.force_dark !== !!S.forceDarkActive);
+    $('ver').textContent = 'Версия ' + S.version + ' · Rust + WebView2';
+  }
+  window.otiumApply = (p) => { S = p; render(); renderRuntime(); };
+
+  // ---------------------------------------------------------------- runtime (account, shield, extensions)
+  let RT = null;
+  const KIND = { password: 'Пароль', pin: 'PIN-код', word: 'Секретное слово' };
+  const PH = { password: 'Пароль (минимум 6 символов)', pin: 'PIN-код (минимум 4 цифры)', word: 'Секретное слово (минимум 4 символа)' };
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  let accKind = 'password';
+  $('accKind').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    accKind = b.dataset.v;
+    $('accKind').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+    for (const id of ['accSecret', 'accSecret2']) { $(id).placeholder = id === 'accSecret' ? PH[accKind] : 'Повторите'; $(id).inputMode = accKind === 'pin' ? 'numeric' : 'text'; }
+  });
+  $('accCreate').addEventListener('click', () => {
+    const name = $('accName').value.trim(), s1 = $('accSecret').value, s2 = $('accSecret2').value;
+    if (!name) return toastErr('Введите имя');
+    if (s1 !== s2) return toastErr('Значения не совпадают');
+    send({ cmd: 'account_create', name, kind: accKind, secret: s1 });
+    $('accSecret').value = $('accSecret2').value = '';
+  });
+
+  // asks for the account secret in a modal; resolves with the value or null
+  function askSecret(title, hint, kind) {
+    return new Promise((resolve) => {
+      const m = document.createElement('div');
+      m.className = 'modal';
+      m.innerHTML = `<form><h3>${esc(title)}</h3><div class="sub" style="color:var(--muted);font-size:13px">${hint}</div>
+        <input class="field" type="password" placeholder="${esc(KIND[kind] || 'Пароль, PIN-код или секретное слово')}" autocomplete="off" ${kind === 'pin' ? 'inputmode="numeric"' : ''}>
+        <div class="row"><button type="button" class="btn" data-c>Отмена</button><button class="btn pri">Продолжить</button></div></form>`;
+      document.body.appendChild(m);
+      const inp = m.querySelector('input'); inp.focus();
+      const done = (v) => { m.remove(); resolve(v); };
+      m.querySelector('[data-c]').onclick = () => done(null);
+      m.addEventListener('keydown', (e) => { if (e.key === 'Escape') done(null); });
+      m.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); if (inp.value) done(inp.value); });
+    });
+  }
+  $('vExport').addEventListener('click', async () => {
+    const s = await askSecret('Экспорт профиля', 'Подтвердите, что это вы. Этим же секретом будет зашифрован файл.', RT && RT.account && RT.account.kind);
+    if (s) send({ cmd: 'vault_export', secret: s });
+  });
+  $('accDelete').addEventListener('click', async () => {
+    const s = await askSecret('Удалить аккаунт', 'Данные браузера останутся, удалится только защита и возможность экспорта.', RT && RT.account && RT.account.kind);
+    if (s) send({ cmd: 'account_delete', secret: s });
+  });
+  $('vImport').addEventListener('click', () => send({ cmd: 'vault_pick' }));
+
+  $('shieldUpd').addEventListener('click', () => send({ cmd: 'shield_update' }));
+  $('allow').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-host]'); if (!b) return;
+    set({ shield_allow: S.settings.shield_allow.filter((h) => h !== b.dataset.host) }, 'Исключение удалено');
+  });
+  $('extInstall').addEventListener('click', () => { const url = $('extUrl').value.trim(); if (url) send({ cmd: 'ext_install', url }); });
+  $('extUrl').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('extInstall').click(); });
+  $('extFolder').addEventListener('click', () => send({ cmd: 'ext_folder' }));
+  $('extList').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const id = b.closest('[data-id]').dataset.id;
+    if (b.dataset.act === 'remove') { if (confirm('Удалить расширение?')) send({ cmd: 'ext_remove', id }); }
+    else if (b.dataset.act === 'options') send({ cmd: 'ext_open', id, page: 'options' });
+  });
+  $('extList').addEventListener('change', (e) => {
+    const i = e.target.closest('input[data-ext]'); if (i) send({ cmd: 'ext_toggle', id: i.dataset.ext, on: i.checked });
+  });
+
+  function renderRuntime() {
+    if (!RT || !S) return;
+    const a = RT.account;
+    $('accNone').style.display = a ? 'none' : '';
+    $('accSome').style.display = a ? '' : 'none';
+    if (a) {
+      $('accAvatar').textContent = (a.name[0] || '?').toUpperCase();
+      $('accTitle').textContent = a.name;
+      $('accSub').textContent = 'Защита: ' + (KIND[a.kind] || a.kind) + ' · создан ' + new Date(a.created * 1000).toLocaleDateString('ru-RU');
+    }
+    const sh = RT.shield;
+    $('shieldLists').innerHTML = (sh.updating ? '<span class="busy"></span>Загружаю и собираю… ' : sh.ready ? '' : 'Ещё не загружены. ') + esc(sh.lists.join(' · '));
+    $('shieldUpd').disabled = sh.updating;
+    const allow = S.settings.shield_allow || [];
+    $('allowBox').style.display = allow.length ? '' : 'none';
+    $('allow').innerHTML = allow.map((h) => `<span>${esc(h)}<button data-host="${esc(h)}" title="Убрать">✕</button></span>`).join('');
+    $('extInstall').innerHTML = RT.extBusy ? '<span class="busy"></span>Устанавливаю' : 'Установить';
+    $('extInstall').disabled = RT.extBusy;
+    $('extList').innerHTML = RT.extensions.map((e) => `<div class="ext" data-id="${esc(e.id)}">
+      ${e.icon ? `<img src="${esc(e.icon)}">` : '<span class="noimg"></span>'}
+      <div class="txt"><div class="ttl">${esc(e.name)}</div><div class="sub">Версия ${esc(e.version)}</div></div>
+      ${e.options ? '<button class="btn mini" data-act="options">Параметры</button>' : ''}
+      <button class="btn mini danger" data-act="remove">Удалить</button>
+      <label class="sw"><input type="checkbox" data-ext="${esc(e.id)}" ${e.enabled ? 'checked' : ''}><i></i></label></div>`).join('');
+  }
+  function toastErr(msg) { const t = $('toast'); t.classList.add('err'); toast(msg); setTimeout(() => t.classList.remove('err'), 1700); }
+
+  window.otiumData = async (what, d) => {
+    if (what === 'runtime') { RT = d; renderRuntime(); }
+    else if (what === 'toast') { if (d.ok) { $('toast').classList.remove('err'); toast(d.msg); } else toastErr(d.msg); if (d.ok) $('extUrl').value = ''; }
+    else if (what === 'vault_file') {
+      const s = await askSecret('Восстановить профиль', `Файл: <b>${esc(d.path.split(/[\\/]/).pop())}</b><br>Введите пароль, PIN-код или секретное слово, которым он защищён. Текущий профиль будет заменён, OTIUM перезапустится.`);
+      if (s) send({ cmd: 'vault_import', path: d.path, secret: s });
+    }
+  };
+  send({ cmd: 'data', what: 'runtime' });
+  if (location.hash) setTimeout(() => document.querySelector(location.hash)?.scrollIntoView(), 50);
+  window.addEventListener('hashchange', () => document.querySelector(location.hash)?.scrollIntoView());
+
+  // scroll-spy for the side nav
+  const links = [...document.querySelectorAll('#nav a')];
+  const spy = new IntersectionObserver((entries) => {
+    entries.forEach((en) => { if (en.isIntersecting) links.forEach((a) => a.classList.toggle('on', a.getAttribute('href') === '#' + en.target.id)); });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('section').forEach((s) => spy.observe(s));
+  links[0].classList.add('on');
+
+  if (window.OTIUM) otiumApply(window.OTIUM);
+</script>
+</body>
+</html>

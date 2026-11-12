@@ -1,0 +1,36 @@
+[package]
+name = "otium"
+version = "0.2.0"
+edition = "2021"
+description = "OTIUM — a fast, minimal, stylish browser written in Rust"
+
+[workspace]
+members = ["installer"]
+
+[dependencies]
+wry = { version = "0.57", features = ["devtools"] }
+tao = "0.37"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+url = "2"
+webview2-com = "0.39"
+adblock = "0.13.5"
+ureq = "2"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+rusqlite = { version = "0.42.0", features = ["bundled"] }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_Security_Cryptography", "Win32_System_Com", "Win32_UI_Shell", "Win32_System_Registry"] }
+rfd = "0.18.0"
+argon2 = "0.5"
+chacha20poly1305 = "0.10"
+png = "0.18.1"
+base64 = "0.22"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[build-dependencies]
+winresource = "0.1.34"

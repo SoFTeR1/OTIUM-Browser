@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark">
+<title>История</title>
+<style>
+  :root { --a1: #8b5cf6; --a2: #22d3ee; --a3: #f472b6; --text: #ececf3; --muted: #8a8a9c; --faint: #5c5c6c; --line: rgba(255,255,255,.07); }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: radial-gradient(900px 600px at 100% -10%, color-mix(in srgb, var(--a1) 12%, transparent), transparent 60%), #0c0c12; background-attachment: fixed;
+    color: var(--text); min-height: 100vh; font: 14px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
+  button { font: inherit; color: inherit; background: none; border: 0; }
+  svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 40px 28px 80px; }
+  header { display: flex; align-items: center; gap: 16px; margin-bottom: 22px; }
+  h1 { font-size: 26px; font-weight: 600; letter-spacing: -.02em; flex: 1; }
+  .tabs { display: inline-flex; padding: 3px; border-radius: 10px; background: rgba(0,0,0,.3); box-shadow: inset 0 0 0 1px var(--line); }
+  .tabs a { height: 30px; padding: 0 14px; border-radius: 8px; color: var(--muted); text-decoration: none; display: grid; place-items: center; font-size: 13px; }
+  .tabs a.on { background: rgba(255,255,255,.1); color: var(--text); }
+  .search { position: relative; margin-bottom: 20px; }
+  .search input { width: 100%; height: 44px; border-radius: 12px; border: 0; outline: 0; padding: 0 16px 0 44px; background: rgba(255,255,255,.04); color: var(--text); font: inherit;
+    box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .2s; }
+  .search input:focus { box-shadow: inset 0 0 0 1px var(--a1), 0 0 0 3px color-mix(in srgb, var(--a1) 20%, transparent); }
+  .search svg { position: absolute; left: 15px; top: 14px; color: var(--muted); }
+  .day { margin: 22px 0 8px 6px; font-size: 12.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .list { background: rgba(255,255,255,.03); border-radius: 14px; box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+  .it { display: flex; align-items: center; gap: 12px; padding: 10px 14px; text-decoration: none; color: inherit; }
+  .it + .it { border-top: 1px solid var(--line); }
+  .it:hover { background: rgba(255,255,255,.04); }
+  .it time { color: var(--faint); font-size: 12px; width: 42px; flex: none; font-variant-numeric: tabular-nums; }
+  .it .ic { width: 18px; height: 18px; flex: none; border-radius: 4px; display: grid; place-items: center; font-size: 10px; font-weight: 700; color: #fff; }
+  .it .ic img { width: 16px; height: 16px; }
+  .it .tt { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: baseline; }
+  .it .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%; }
+  .it .u { color: var(--faint); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .it .del { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; color: var(--muted); opacity: 0; transition: opacity .15s; }
+  .it:hover .del { opacity: 1; }
+  .it .del:hover { background: rgba(255,255,255,.1); color: var(--text); }
+  .btn { height: 34px; padding: 0 14px; border-radius: 9px; background: rgba(255,255,255,.06); color: var(--muted); }
+  .btn:hover { background: rgba(248,113,113,.12); color: #f87171; }
+  .empty { text-align: center; color: var(--faint); padding: 60px 0; }
+  .more { display: block; margin: 18px auto 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="h">История</h1>
+    <nav class="tabs"><a href="/history" id="tH">История</a><a href="/bookmarks" id="tB">Закладки</a></nav>
+    <button class="btn" id="clear">Очистить историю</button>
+  </header>
+  <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg><input id="q" placeholder="Поиск" autofocus spellcheck="false"></div>
+  <div id="out"></div>
+  <button class="btn more" id="more" style="display:none">Показать ещё</button>
+</div>
+<script>
+  window.OTIUM = /*__OTIUM__*/null;
+  const $ = (s) => document.getElementById(s);
+  const send = (o) => window.otiumSend && window.otiumSend(o);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (_) { return u; } };
+  const hue = (s) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+  const mode = location.pathname.includes('bookmarks') ? 'bookmarks' : 'history';
+  let items = [], offset = 0;
+
+  document.title = mode === 'history' ? 'История' : 'Закладки';
+  $('h').textContent = document.title;
+  $(mode === 'history' ? 'tH' : 'tB').classList.add('on');
+  $('clear').style.display = mode === 'history' ? '' : 'none';
+  if (window.OTIUM) { const a = OTIUM.accent; ['--a1', '--a2', '--a3'].forEach((v, i) => document.documentElement.style.setProperty(v, a[i])); }
+
+  const dayName = (d) => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const x = new Date(d); x.setHours(0, 0, 0, 0);
+    const diff = (today - x) / 86400000;
+    if (diff === 0) return 'Сегодня';
+    if (diff === 1) return 'Вчера';
+    return x.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
+  };
+  const row = (it) => {
+    const h = hostOf(it.url);
+    const time = mode === 'history' ? new Date(it.time * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
+    return `<a class="it" href="${esc(it.url)}">${time ? `<time>${time}</time>` : ''}
+      <span class="ic" style="background:hsl(${hue(h)} 55% 42%)">${esc(h[0] ? h[0].toUpperCase() : '?')}</span>
+      <span class="tt"><span class="t">${esc(it.title || h)}</span><span class="u">${esc(h)}</span></span>
+      <button class="del" data-url="${esc(it.url)}" title="Удалить"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></a>`;
+  };
+  function render() {
+    if (!items.length) { $('out').innerHTML = `<div class="empty">${$('q').value ? 'Ничего не найдено' : mode === 'history' ? 'История пуста' : 'Закладок пока нет — нажмите ☆ в адресной строке или Ctrl+D'}</div>`; return; }
+    if (mode === 'bookmarks') {
+      const q = $('q').value.toLowerCase();
+      const list = items.filter((i) => !q || (i.title + i.url).toLowerCase().includes(q));
+      $('out').innerHTML = `<div class="list">${list.map(row).join('')}</div>`;
+      return;
+    }
+    let html = '', day = null;
+    for (const it of items) {
+      const d = dayName(it.time * 1000);
+      if (d !== day) { if (day) html += '</div>'; html += `<div class="day">${d}</div><div class="list">`; day = d; }
+      html += row(it);
+    }
+    $('out').innerHTML = html + '</div>';
+  }
+  window.otiumData = (what, data) => {
+    if (what === mode) {
+      items = offset ? items.concat(data) : data;
+      $('more').style.display = mode === 'history' && data.length === 100 ? '' : 'none';
+      render();
+    }
+  };
+  const load = () => send({ cmd: 'data', what: mode, q: mode === 'history' ? $('q').value : '', offset });
+  let t; $('q').addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { offset = 0; mode === 'history' ? load() : render(); }, 150); });
+  $('more').addEventListener('click', () => { offset += 100; load(); });
+  $('out').addEventListener('click', (e) => {
+    const b = e.target.closest('.del'); if (!b) return;
+    e.preventDefault();
+    const url = b.dataset.url;
+    send(mode === 'history' ? { cmd: 'delete_history', url } : { cmd: 'delete_bookmark', url });
+    items = items.filter((i) => i.url !== url); render();
+  });
+  $('clear').addEventListener('click', () => { if (confirm('Очистить всю историю?')) { send({ cmd: 'clear_history' }); items = []; render(); } });
+  load();
+</script>
+</body>
+</html>

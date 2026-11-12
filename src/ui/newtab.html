@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Новая вкладка</title>
+<meta name="color-scheme" content="dark">
+<style>
+  :root { --a1: #8b5cf6; --a2: #22d3ee; --a3: #f472b6; --text: #ececf3; --muted: #8a8a9c; --line: rgba(255,255,255,.08); }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: #0c0c12; color: var(--text); overflow: hidden;
+    font: 14px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    display: grid; place-items: center;
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; }
+  svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .aurora { position: fixed; inset: -20%; filter: blur(80px); opacity: .55; pointer-events: none; }
+  .aurora i { position: absolute; width: 46vmax; height: 46vmax; border-radius: 50%; mix-blend-mode: screen; animation: drift 22s ease-in-out infinite alternate; }
+  .aurora i:nth-child(1) { background: radial-gradient(circle, color-mix(in srgb, var(--a1) 55%, transparent), transparent 65%); left: 10%; top: 5%; }
+  .aurora i:nth-child(2) { background: radial-gradient(circle, color-mix(in srgb, var(--a2) 38%, transparent), transparent 65%); right: 5%; top: 30%; animation-duration: 28s; animation-delay: -6s; }
+  .aurora i:nth-child(3) { background: radial-gradient(circle, color-mix(in srgb, var(--a3) 25%, transparent), transparent 65%); left: 30%; bottom: 0; animation-duration: 34s; animation-delay: -12s; }
+  body.still .aurora i { animation: none; }
+  @keyframes drift { to { transform: translate(8vmax, -6vmax) scale(1.15); } }
+  .grain { position: fixed; inset: 0; pointer-events: none; opacity: .05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+
+  .corner { position: fixed; top: 16px; right: 16px; display: flex; gap: 6px; }
+  .pill { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border-radius: 10px; color: var(--muted);
+    background: rgba(255,255,255,.04); box-shadow: inset 0 0 0 1px var(--line); backdrop-filter: blur(12px); transition: color .2s, background .2s; }
+  .pill:hover { color: var(--text); background: rgba(255,255,255,.08); }
+  .pill.on { color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--a1) 60%, transparent); }
+  .pill svg { width: 15px; height: 15px; }
+
+  main { position: relative; width: min(680px, 90vw); display: flex; flex-direction: column; align-items: center; gap: 28px; margin-top: -6vh; animation: rise .6s cubic-bezier(.2,.8,.2,1); }
+  @keyframes rise { from { opacity: 0; transform: translateY(12px); } }
+  .logo { display: flex; align-items: center; gap: 10px; margin-bottom: -6px; }
+  .logo img { width: 30px; height: 30px; filter: drop-shadow(0 6px 18px color-mix(in srgb, var(--a1) 50%, transparent)); }
+  .clock { font-size: clamp(64px, 11vw, 112px); font-weight: 200; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .clock b { font-weight: 200; color: var(--muted); animation: blink 2s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: .25; } }
+  .greet { color: var(--muted); margin-top: -18px; font-size: 15px; }
+  .brand { font-weight: 800; letter-spacing: .5em; font-size: 12px; padding-left: .5em;
+    background: linear-gradient(120deg, var(--a1), var(--a2), var(--a3)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  form.search { position: relative; width: 100%; }
+  form.search::before { content: ""; position: absolute; inset: -1px; border-radius: 17px; padding: 1px;
+    background: linear-gradient(120deg, var(--a1), var(--a2), var(--a3));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+    opacity: .3; transition: opacity .25s; }
+  form.search:focus-within::before { opacity: .9; }
+  form.search input { width: 100%; height: 56px; border-radius: 16px; border: 0; outline: 0; padding: 0 20px 0 52px;
+    background: rgba(18,18,26,.7); backdrop-filter: blur(20px); color: var(--text); font: inherit; font-size: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.45); }
+  form.search input::placeholder { color: #646476; }
+  form.search > svg { z-index: 1; pointer-events: none; position: absolute; left: 18px; top: 18px; width: 20px; height: 20px; stroke: var(--muted); }
+
+  .tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 18px 14px; width: 100%; }
+  .tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; text-decoration: none; color: var(--muted); font-size: 12px; transition: color .2s; -webkit-user-drag: element; }
+  .tile .nm { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .ic { position: relative; width: 58px; height: 58px; border-radius: 17px; display: grid; place-items: center; font-weight: 700; font-size: 20px; color: #fff;
+    background: rgba(255,255,255,.05); box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); transition: transform .25s cubic-bezier(.2,.8,.2,1), background .25s, box-shadow .25s; }
+  .tile .ic img { width: 28px; height: 28px; border-radius: 6px; display: none; }
+  .tile .ic b { font-weight: 700; }
+  .tile .ic.img img { display: block; }
+  .tile .ic.img b { display: none; }
+  .tile:hover { color: var(--text); }
+  .tile:hover .ic { transform: translateY(-3px); background: var(--g); box-shadow: 0 12px 30px rgba(0,0,0,.4); }
+  .tile .ed { position: absolute; top: -6px; right: calc(50% - 38px); width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+    background: #24242e; color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,.5), inset 0 0 0 1px var(--line); opacity: 0; transform: scale(.7); transition: opacity .15s, transform .15s; }
+  .tile .ed svg { width: 12px; height: 12px; }
+  .tile:hover .ed, body.editing .tile .ed { opacity: 1; transform: none; }
+  body.editing .tile:not(.add) .ic { animation: wob .3s ease-in-out infinite alternate; }
+  @keyframes wob { from { transform: rotate(-2deg); } to { transform: rotate(2deg); } }
+  .tile.add .ic { background: transparent; box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.14); color: var(--muted); border: 0; }
+  .tile.add .ic svg { width: 22px; height: 22px; }
+  .tile.add:hover .ic { background: rgba(255,255,255,.06); color: var(--text); transform: translateY(-3px); }
+  .tile.drag-over .ic { box-shadow: inset 0 0 0 2px var(--a1); }
+  .tile.dragging { opacity: .35; }
+
+  footer { position: fixed; bottom: 18px; color: #4c4c5c; font-size: 12px; }
+  kbd { font: inherit; padding: 1px 6px; border-radius: 5px; background: rgba(255,255,255,.05); color: #7a7a8c; }
+  .hide { display: none !important; }
+  @media (max-width: 620px) { .tiles { grid-template-columns: repeat(4, 1fr); } }
+
+  /* ---------- tile editor ---------- */
+  .scrim { position: fixed; inset: 0; background: rgba(5,5,8,.55); backdrop-filter: blur(6px); display: grid; place-items: center; z-index: 10; animation: fade .18s; }
+  @keyframes fade { from { opacity: 0; } }
+  .dlg { width: min(400px, 92vw); padding: 22px; border-radius: 18px; background: rgba(22,22,30,.92); box-shadow: 0 30px 80px rgba(0,0,0,.6), inset 0 0 0 1px var(--line);
+    display: flex; flex-direction: column; gap: 14px; animation: rise .25s cubic-bezier(.2,.8,.2,1); }
+  .dlg h3 { font-weight: 600; font-size: 16px; }
+  .dlg label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 12px; }
+  .dlg input { height: 40px; border-radius: 10px; border: 0; outline: 0; padding: 0 12px; background: rgba(0,0,0,.35); color: var(--text); font: inherit;
+    box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .2s; }
+  .dlg input:focus { box-shadow: inset 0 0 0 1px var(--a1), 0 0 0 3px color-mix(in srgb, var(--a1) 20%, transparent); }
+  .row { display: flex; gap: 8px; margin-top: 4px; }
+  .row .sp { flex: 1; }
+  .btn { height: 36px; padding: 0 16px; border-radius: 10px; background: rgba(255,255,255,.06); transition: background .15s, filter .15s; }
+  .btn:hover { background: rgba(255,255,255,.11); }
+  .btn.pri { background: linear-gradient(120deg, var(--a1), var(--a2)); color: #fff; font-weight: 600; }
+  .btn.pri:hover { filter: brightness(1.1); }
+  .btn.del { color: #f87171; }
+  .btn.del:hover { background: rgba(248,113,113,.12); }
+</style>
+</head>
+<body>
+  <div class="aurora"><i></i><i></i><i></i></div>
+  <div class="grain"></div>
+  <div class="corner">
+    <button class="pill" id="editBtn" title="Изменить плитки"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg><span>Плитки</span></button>
+    <button class="pill" id="setBtn" title="Настройки (Ctrl+,)"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+  </div>
+  <main>
+    <div class="logo"><img src="/icon.png" alt=""><div class="brand">OTIUM</div></div>
+    <div class="clock" id="clock">00<b>:</b>00</div>
+    <div class="greet" id="greet"></div>
+    <form class="search" id="f" autocomplete="off">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
+      <input id="q" autofocus spellcheck="false">
+    </form>
+    <nav class="tiles" id="tiles"></nav>
+  </main>
+  <footer id="hints"><kbd>Ctrl T</kbd> вкладка · <kbd>Ctrl L</kbd> адрес · <kbd>Ctrl ,</kbd> настройки · <kbd>F11</kbd> фокус</footer>
+<script>
+  window.OTIUM = /*__OTIUM__*/null;
+  const $ = (s) => document.getElementById(s);
+  const send = (o) => window.otiumSend && window.otiumSend(o);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (_) { return ''; } };
+  const hue = (s) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+  let S = null;
+
+  // ---------- tiles ----------
+  const PEN = '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg>';
+  function renderTiles() {
+    const tiles = S.settings.tiles;
+    const html = tiles.map((t, i) => {
+      const h = hostOf(t.url), c = hue(h || t.name);
+      const letter = esc((t.name || h || '?')[0].toUpperCase());
+      const g = `linear-gradient(135deg,hsl(${c} 70% 55%),hsl(${(c + 40) % 360} 65% 38%))`;
+      return `<a class="tile" draggable="true" data-i="${i}" href="${esc(t.url)}" style="--g:${g}">
+        <span class="ic"><b>${letter}</b><img src="https://${esc(h)}/favicon.ico" alt="" onload="this.parentNode.classList.add('img')" onerror="this.remove()"></span>
+        <span class="nm">${esc(t.name || h)}</span>
+        <button class="ed" data-edit="${i}" title="Изменить">${PEN}</button></a>`;
+    }).join('');
+    const add = tiles.length < 24
+      ? '<a class="tile add" href="#" data-add><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nm">Добавить</span></a>'
+      : '';
+    $('tiles').innerHTML = html + add;
+  }
+  const saveTiles = (tiles) => { S.settings.tiles = tiles; renderTiles(); send({ cmd: 'set', patch: { tiles } }); };
+
+  $('tiles').addEventListener('click', (e) => {
+    const ed = e.target.closest('[data-edit]');
+    if (ed) { e.preventDefault(); e.stopPropagation(); openEditor(Number(ed.dataset.edit)); return; }
+    if (e.target.closest('[data-add]')) { e.preventDefault(); openEditor(-1); return; }
+    const a = e.target.closest('a.tile');
+    if (a && document.body.classList.contains('editing')) { e.preventDefault(); openEditor(Number(a.dataset.i)); }
+  });
+
+  // drag to reorder
+  let dragFrom = -1;
+  $('tiles').addEventListener('dragstart', (e) => {
+    const a = e.target.closest('a.tile:not(.add)'); if (!a) return;
+    dragFrom = Number(a.dataset.i); a.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', '');
+  });
+  $('tiles').addEventListener('dragover', (e) => {
+    const a = e.target.closest('a.tile:not(.add)'); if (!a || dragFrom < 0) return;
+    e.preventDefault();
+    document.querySelectorAll('.drag-over').forEach((n) => n !== a && n.classList.remove('drag-over'));
+    a.classList.add('drag-over');
+  });
+  $('tiles').addEventListener('drop', (e) => {
+    const a = e.target.closest('a.tile:not(.add)'); if (!a || dragFrom < 0) return;
+    e.preventDefault();
+    const to = Number(a.dataset.i), tiles = S.settings.tiles.slice();
+    const [m] = tiles.splice(dragFrom, 1); tiles.splice(to, 0, m);
+    dragFrom = -1; saveTiles(tiles);
+  });
+  $('tiles').addEventListener('dragend', () => { dragFrom = -1; renderTiles(); });
+
+  // ---------- editor dialog ----------
+  function normUrl(u) {
+    u = u.trim(); if (!u) return '';
+    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+    try { return new URL(u).href; } catch (_) { return ''; }
+  }
+  function openEditor(i) {
+    const t = i >= 0 ? S.settings.tiles[i] : { name: '', url: '' };
+    const scrim = document.createElement('div');
+    scrim.className = 'scrim';
+    scrim.innerHTML = `<form class="dlg" autocomplete="off">
+      <h3>${i >= 0 ? 'Изменить плитку' : 'Новая плитка'}</h3>
+      <label>Название<input name="name" maxlength="40" value="${esc(t.name)}" placeholder="Например, YouTube"></label>
+      <label>Адрес<input name="url" value="${esc(t.url)}" placeholder="youtube.com" required></label>
+      <div class="row">
+        ${i >= 0 ? '<button type="button" class="btn del" data-del>Удалить</button>' : ''}
+        <span class="sp"></span>
+        <button type="button" class="btn" data-cancel>Отмена</button>
+        <button class="btn pri">Сохранить</button>
+      </div></form>`;
+    document.body.appendChild(scrim);
+    const form = scrim.querySelector('form');
+    const close = () => scrim.remove();
+    form.elements[i >= 0 ? 'name' : 'url'].focus();
+    scrim.addEventListener('mousedown', (e) => { if (e.target === scrim) close(); });
+    scrim.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+    scrim.querySelector('[data-cancel]').onclick = close;
+    const del = scrim.querySelector('[data-del]');
+    if (del) del.onclick = () => { const tiles = S.settings.tiles.slice(); tiles.splice(i, 1); saveTiles(tiles); close(); };
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const url = normUrl(form.elements.url.value);
+      if (!url) { form.elements.url.focus(); return; }
+      const name = form.elements.name.value.trim() || hostOf(url);
+      const tiles = S.settings.tiles.slice();
+      if (i >= 0) tiles[i] = { name, url }; else tiles.push({ name, url });
+      saveTiles(tiles); close();
+    });
+  }
+  $('editBtn').addEventListener('click', () => {
+    const on = document.body.classList.toggle('editing');
+    $('editBtn').classList.toggle('on', on);
+    $('editBtn').querySelector('span').textContent = on ? 'Готово' : 'Плитки';
+  });
+  $('setBtn').addEventListener('click', () => send({ cmd: 'open_settings' }));
+
+  // ---------- clock ----------
+  const tick = () => {
+    const d = new Date(), h = d.getHours();
+    $('clock').innerHTML = String(h).padStart(2, '0') + '<b>:</b>' + String(d.getMinutes()).padStart(2, '0');
+    $('greet').textContent = (h < 5 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер') +
+      ' · ' + d.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
+  };
+  tick(); setInterval(tick, 1000);
+
+  $('f').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const v = $('q').value.trim();
+    if (v && window.otiumNavigate) window.otiumNavigate(v);
+  });
+  window.addEventListener('focus', () => { if (!document.querySelector('.scrim')) $('q').focus(); });
+
+  // ---------- settings ----------
+  window.otiumApply = (payload) => {
+    S = payload;
+    const s = S.settings, r = document.documentElement.style;
+    ['--a1', '--a2', '--a3'].forEach((v, i) => r.setProperty(v, S.accent[i]));
+    $('clock').classList.toggle('hide', !s.nt_clock);
+    $('greet').classList.toggle('hide', !s.nt_greeting);
+    $('tiles').classList.toggle('hide', !s.nt_tiles);
+    $('editBtn').classList.toggle('hide', !s.nt_tiles);
+    $('hints').classList.toggle('hide', !s.nt_hints);
+    document.body.classList.toggle('still', !s.nt_motion);
+    $('q').placeholder = `Поиск в ${S.searchName} или адрес сайта`;
+    renderTiles();
+  };
+  otiumApply(window.OTIUM || { settings: { tiles: [], nt_clock: true, nt_greeting: true, nt_tiles: true, nt_hints: true, nt_motion: true }, accent: ['#8b5cf6', '#22d3ee', '#f472b6'], searchName: 'Google' });
+</script>
+</body>
+</html>

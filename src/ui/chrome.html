@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark">
+<title>OTIUM</title>
+<style>
+  :root {
+    --sb: 264px;
+    --cx: 264px; --cy: 8px; --cm: 8px;
+    --bg: #0a0a0e;
+    --text: #ececf3;
+    --muted: #8a8a9c;
+    --faint: #5a5a6a;
+    --line: rgba(255,255,255,.07);
+    --hover: rgba(255,255,255,.055);
+    --active: rgba(255,255,255,.09);
+    --a1: #8b5cf6;
+    --a2: #22d3ee;
+    --priv: #c084fc;
+    --grad: linear-gradient(120deg, var(--a1), var(--a2));
+    --ease: cubic-bezier(.2,.8,.2,1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background:
+      radial-gradient(900px 500px at -10% -10%, color-mix(in srgb, var(--a1) 16%, transparent), transparent 60%),
+      radial-gradient(700px 500px at 0% 110%, color-mix(in srgb, var(--a2) 10%, transparent), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font: 13px/1.35 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    user-select: none;
+    -webkit-font-smoothing: antialiased;
+  }
+  body.classic {
+    background:
+      radial-gradient(1200px 160px at 10% -40px, color-mix(in srgb, var(--a1) 18%, transparent), transparent 70%),
+      radial-gradient(900px 160px at 90% -40px, color-mix(in srgb, var(--a2) 10%, transparent), transparent 70%),
+      var(--bg);
+  }
+  body.private-active { --a1: #a855f7; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: default; }
+  svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  /* ---------- window resize zones ---------- */
+  .rz { position: fixed; z-index: 50; }
+  .rz.n { top: 0; left: 8px; right: 8px; height: 4px; cursor: ns-resize; }
+  .rz.s { bottom: 0; left: 8px; right: 8px; height: 5px; cursor: ns-resize; }
+  .rz.w { left: 0; top: 8px; bottom: 8px; width: 5px; cursor: ew-resize; }
+  .rz.e { right: 0; top: 8px; bottom: 8px; width: 5px; cursor: ew-resize; }
+  .rz.nw { left: 0; top: 0; width: 10px; height: 10px; cursor: nwse-resize; }
+  .rz.se { right: 0; bottom: 0; width: 10px; height: 10px; cursor: nwse-resize; }
+  .rz.ne { right: 0; top: 0; width: 8px; height: 8px; cursor: nesw-resize; }
+  .rz.sw { left: 0; bottom: 0; width: 10px; height: 10px; cursor: nesw-resize; }
+  body.max .rz { display: none; }
+
+  /* ---------- content card (native webview sits on top of it) ---------- */
+  #card {
+    position: fixed; left: var(--cx); top: var(--cy); right: var(--cm); bottom: var(--cm);
+    border-radius: 6px; background: #111117;
+    box-shadow: 0 0 0 1px var(--line), 0 12px 40px rgba(0,0,0,.55), 0 0 60px color-mix(in srgb, var(--a1) 6%, transparent);
+  }
+  body.flat #card { border-radius: 0; box-shadow: none; }
+  body.private-active #card { box-shadow: 0 0 0 1px color-mix(in srgb, var(--priv) 50%, transparent), 0 12px 40px rgba(0,0,0,.55), 0 0 60px color-mix(in srgb, var(--priv) 14%, transparent); }
+
+  /* ---------- shared bits ---------- */
+  #bar { position: fixed; }
+  .ib {
+    position: relative; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px;
+    color: var(--muted); transition: background .15s, color .15s, transform .1s;
+  }
+  .ib:hover, .ib.open { background: var(--hover); color: var(--text); }
+  .ib:active { transform: scale(.92); }
+  .ib svg { width: 15px; height: 15px; }
+  .win, .tools, .nav, .acts { display: flex; gap: 2px; align-items: center; }
+  .win .close:hover { background: #e5484d; color: #fff; }
+  .drag { min-width: 0; }
+  .br { display: none; }
+  .hidden { display: none !important; }
+  .badge { position: absolute; right: 2px; top: 2px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; font-size: 9.5px; font-weight: 700; line-height: 14px; text-align: center; color: #fff; background: var(--grad); }
+  #dlbtn .ring-p { position: absolute; inset: 3px; border-radius: 50%; background: conic-gradient(var(--a2) calc(var(--p, 0) * 1turn), transparent 0); -webkit-mask: radial-gradient(circle, transparent 10px, #000 11px); }
+  #dlbtn.pulse { animation: pulse .6s var(--ease) 2; }
+  @keyframes pulse { 50% { transform: translateY(3px); color: var(--a2); } }
+
+  .omni {
+    position: relative; display: flex; align-items: center; gap: 8px;
+    height: 38px; padding: 0 4px 0 12px; border-radius: 11px;
+    background: rgba(255,255,255,.045);
+    box-shadow: inset 0 0 0 1px var(--line);
+    transition: background .2s, box-shadow .2s;
+    overflow: hidden; min-width: 0;
+  }
+  .omni:hover { background: rgba(255,255,255,.065); }
+  .omni.focus { background: rgba(0,0,0,.35); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--a1) 60%, transparent), 0 0 0 4px color-mix(in srgb, var(--a1) 14%, transparent); }
+  .omni .lead { color: var(--muted); display: grid; }
+  .omni .lead.secure { color: #4ade80; }
+  .omni input {
+    flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: 0;
+    color: var(--text); font: inherit; font-size: 13px; user-select: text;
+  }
+  .omni input::placeholder { color: var(--faint); }
+  .omni input::selection { background: color-mix(in srgb, var(--a1) 45%, transparent); }
+  .omni .bar { position: absolute; left: 0; bottom: 0; height: 2px; width: 40%; background: var(--grad); opacity: 0; border-radius: 2px; }
+  .omni.loading .bar { opacity: 1; animation: slide 1.1s var(--ease) infinite; }
+  @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+  .omni .ib { width: 28px; height: 28px; }
+  .omni .ib.on { color: #facc15; }
+  .omni .ib.on svg { fill: currentColor; }
+  #shieldBtn.on { color: var(--a2); }
+  #shieldBtn .cnt { position: absolute; right: -1px; bottom: 1px; font-size: 9px; font-weight: 700; color: var(--a2); }
+  .chip { font-size: 11px; padding: 2px 7px; border-radius: 6px; color: var(--priv); background: color-mix(in srgb, var(--priv) 14%, transparent); flex: none; }
+  .omni.focus .chip, .omni.focus .ib { display: none; }
+
+  .label { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 2px; color: var(--faint); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+
+  #tabs, #pins { display: flex; min-width: 0; min-height: 0; }
+  #tabs::-webkit-scrollbar { width: 6px; height: 0; }
+  #tabs::-webkit-scrollbar-thumb { background: rgba(255,255,255,.08); border-radius: 3px; }
+  .tab {
+    position: relative; display: flex; align-items: center; gap: 10px;
+    height: 36px; padding: 0 6px 0 10px; border-radius: 9px; flex: none;
+    color: #c8c8d4; transition: background .15s, color .15s;
+    animation: pop .22s var(--ease);
+  }
+  @keyframes pop { from { opacity: 0; transform: scale(.96); } }
+  .tab:hover { background: var(--hover); }
+  .tab.on { background: var(--active); color: var(--text); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
+  .tab.on::before { content: ""; position: absolute; border-radius: 3px; background: var(--grad); }
+  .tab.private .t { color: var(--priv); }
+  .tab.private.on::before { background: linear-gradient(120deg, var(--priv), #f472b6); }
+  .tab .ico { width: 16px; height: 16px; flex: none; position: relative; display: grid; place-items: center; }
+  .tab .ico img { width: 16px; height: 16px; border-radius: 3px; }
+  .tab .ico .letter { width: 16px; height: 16px; border-radius: 5px; display: grid; place-items: center; font-size: 10px; font-weight: 700; color: #fff; }
+  .tab .ico .gear { color: var(--a1); }
+  .tab .ico .mask { position: absolute; right: -6px; bottom: -5px; width: 12px; height: 12px; border-radius: 50%; background: #0f0f14; color: var(--priv); display: grid; place-items: center; }
+  .tab .ico .mask svg { width: 10px; height: 10px; stroke-width: 2.2; }
+  .tab.loading .ico::after {
+    content: ""; position: absolute; inset: -4px; border-radius: 50%;
+    border: 2px solid transparent; border-top-color: var(--a2); border-left-color: var(--a1);
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .tab .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); }
+  .tab .snd { width: 22px; height: 22px; border-radius: 6px; display: none; place-items: center; color: var(--a2); flex: none; }
+  .tab.audio .snd, .tab.muted .snd { display: grid; }
+  .tab.muted .snd { color: var(--muted); }
+  .tab .snd:hover { background: rgba(255,255,255,.1); }
+  .tab .snd svg { width: 13px; height: 13px; }
+  .tab .x { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; color: var(--muted); opacity: 0; transition: opacity .12s, background .12s; flex: none; }
+  .tab:hover .x, .tab.on .x { opacity: 1; }
+  .tab .x:hover { background: rgba(255,255,255,.1); color: var(--text); }
+  .tab .x svg { width: 12px; height: 12px; stroke-width: 2.2; }
+  .tab.dragging { opacity: .4; }
+  .tab.drop-before { box-shadow: inset 0 2px 0 var(--a1); }
+
+  /* pinned tabs: icon tiles */
+  .tab.pinned { width: 44px; height: 36px; padding: 0; justify-content: center; }
+  .tab.pinned .t, .tab.pinned .x { display: none; }
+  .tab.pinned .snd { position: absolute; right: -2px; top: -2px; width: 16px; height: 16px; background: #15151c; border-radius: 50%; }
+  .tab.pinned .snd svg { width: 10px; height: 10px; }
+
+  .newtab { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 9px; color: var(--muted); transition: background .15s, color .15s; flex: none; }
+  .newtab:hover { background: var(--hover); color: var(--text); }
+  .newtab kbd { margin-left: auto; font: 11px "Segoe UI", sans-serif; color: var(--faint); }
+
+  .foot { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 6px; }
+  .brand { font-weight: 800; letter-spacing: .32em; font-size: 12px; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .logo { position: relative; width: 16px; height: 16px; flex: none; }
+  .logo::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 60deg, transparent 0 40deg, #e8efff 40deg, #8fb4ff 330deg, transparent 330deg); -webkit-mask: radial-gradient(circle, transparent 5px, #000 5.6px); }
+  .logo::after { content: ""; position: absolute; right: 0; top: 0; width: 4px; height: 4px; border-radius: 50%; background: #fff; box-shadow: 0 0 6px 2px rgba(160,190,255,.9); }
+
+  /* ======================= SIDEBAR LAYOUT ======================= */
+  body:not(.classic) #bar {
+    left: 0; top: 0; bottom: 0; width: var(--sb);
+    display: grid; gap: 8px; padding: 10px;
+    grid-template-columns: auto 1fr auto;
+    grid-template-rows: 30px 30px 38px auto auto minmax(0, 1fr) 36px 30px;
+    grid-template-areas: "win drag tools" "nav dragb acts" "omni omni omni" "pins pins pins" "label label label" "tabs tabs tabs" "newtab newtab newtab" "foot foot foot";
+  }
+  body:not(.classic) .win { grid-area: win; }
+  body:not(.classic) #dragA { grid-area: drag; }
+  body:not(.classic) #dragB { grid-area: dragb; }
+  body:not(.classic) .tools { grid-area: tools; }
+  body:not(.classic) .nav { grid-area: nav; }
+  body:not(.classic) .acts { grid-area: acts; }
+  body:not(.classic) .omni { grid-area: omni; }
+  body:not(.classic) #pins { grid-area: pins; flex-wrap: wrap; gap: 4px; }
+  body:not(.classic) #pins:empty { display: none; }
+  body:not(.classic) .label { grid-area: label; }
+  body:not(.classic) #tabs { grid-area: tabs; flex-direction: column; gap: 2px; overflow-y: auto; overflow-x: hidden; margin: 0 -4px; padding: 0 4px; }
+  body:not(.classic) .newtab { grid-area: newtab; }
+  body:not(.classic) .foot { grid-area: foot; }
+  body:not(.classic) .tab.on::before { left: -4px; top: 9px; bottom: 9px; width: 3px; }
+  body:not(.classic) .tab.pinned.on::before { left: 12px; right: 12px; top: auto; bottom: 2px; width: auto; height: 2px; }
+  body:not(.classic) .tab.pinned { background: rgba(255,255,255,.035); }
+
+  /* collapsed sidebar */
+  body.mini:not(.classic) { --sb: 60px; }
+  body.mini:not(.classic) #bar {
+    padding: 10px 8px; justify-items: center;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto auto auto minmax(0, 1fr) 36px 30px;
+    grid-template-areas: "win" "tools" "nav" "acts" "pins" "tabs" "newtab" "foot";
+  }
+  body.mini .win, body.mini .tools, body.mini .nav, body.mini .acts, body.mini #pins { flex-direction: column; }
+  body.mini #dragA, body.mini #dragB, body.mini .omni, body.mini .label, body.mini .brand, body.mini .newtab kbd, body.mini .newtab span,
+  body.mini .tab .t, body.mini .tab .x { display: none; }
+  body.mini #tabs { width: 100%; align-items: center; margin: 0; padding: 0; }
+  body.mini .tab { width: 40px; padding: 0; justify-content: center; }
+  body.mini .tab .snd { position: absolute; right: -2px; top: -2px; width: 16px; height: 16px; background: #15151c; border-radius: 50%; }
+  body.mini .tab.on::before { left: -8px; }
+  body.mini .newtab { width: 40px; padding: 0; justify-content: center; }
+  body.mini .foot { padding: 0; justify-content: center; }
+
+  /* ======================= CLASSIC LAYOUT ======================= */
+  body.classic #bar {
+    left: 0; right: 0; top: 0; height: 82px;
+    display: flex; flex-wrap: wrap; align-items: center; align-content: flex-start;
+    padding: 0 0 0 8px; column-gap: 4px;
+  }
+  body.classic #pins { order: 0; height: 40px; align-items: flex-end; gap: 2px; padding-top: 4px; }
+  body.classic #pins .tab { height: 34px; width: 40px; border-radius: 10px 10px 0 0; }
+  body.classic #tabs { order: 1; height: 40px; align-items: flex-end; gap: 2px; overflow-x: auto; overflow-y: hidden; flex: 0 1 auto; padding-top: 4px; max-width: calc(100% - 236px - var(--pins-w, 0px)); }
+  body.classic .newtab { order: 2; width: 30px; height: 30px; padding: 0; justify-content: center; border-radius: 8px; margin-top: 6px; }
+  body.classic .newtab span, body.classic .newtab kbd { display: none; }
+  body.classic #dragA { order: 3; flex: 1 0 48px; height: 40px; }
+  body.classic .win { order: 4; align-self: flex-start; gap: 0; }
+  body.classic .win .ib { width: 46px; height: 36px; border-radius: 0; }
+  body.classic .win .close { order: 3; }
+  body.classic .br { display: block; order: 5; flex-basis: 100%; height: 0; }
+  body.classic .nav { order: 6; height: 42px; }
+  body.classic #dragB { display: none; }
+  body.classic .omni { order: 7; flex: 1; height: 32px; border-radius: 10px; margin: 0 6px; }
+  body.classic .acts { order: 8; padding-right: 8px; }
+  body.classic .tools, body.classic .label, body.classic .foot { display: none; }
+  body.classic #tabs .tab { width: 210px; flex: 0 1 210px; min-width: 44px; height: 34px; border-radius: 10px 10px 0 0; animation-name: popc; }
+  @keyframes popc { from { opacity: 0; transform: translateY(6px); } }
+  body.classic .tab.on { box-shadow: none; background: rgba(255,255,255,.075); }
+  body.classic .tab.on::before { left: 12px; right: 12px; bottom: 0; height: 2px; }
+  body.classic #tabs .tab:not(.on):not(:hover) + .tab:not(.on):not(:hover)::after {
+    content: ""; position: absolute; left: -2px; top: 10px; bottom: 10px; width: 1px; background: var(--line);
+  }
+  body.classic.narrow #tabs .tab .t { display: none; }
+
+  body.fs #bar, body.fs #card { display: none; }
+</style>
+</head>
+<body>
+  <div class="rz n" data-rz="n"></div><div class="rz s" data-rz="s"></div>
+  <div class="rz e" data-rz="e"></div><div class="rz w" data-rz="w"></div>
+  <div class="rz ne" data-rz="ne"></div><div class="rz nw" data-rz="nw"></div>
+  <div class="rz se" data-rz="se"></div><div class="rz sw" data-rz="sw"></div>
+
+  <div id="card"></div>
+
+  <div id="bar">
+    <div class="win">
+      <button class="ib close" data-cmd="close" title="Закрыть"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <button class="ib" data-cmd="minimize" title="Свернуть"><svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg></button>
+      <button class="ib" data-cmd="maximize" title="Развернуть" id="maxbtn"></button>
+    </div>
+    <div class="drag" id="dragA" data-drag></div>
+    <div class="tools">
+      <button class="ib" id="toggle" title="Боковая панель (Ctrl+Shift+B)"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="3"/><path d="M9.5 5v14"/></svg></button>
+    </div>
+    <div class="br"></div>
+
+    <div class="nav">
+      <button class="ib" data-cmd="back" title="Назад (Alt+←)"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <button class="ib" data-cmd="forward" title="Вперёд (Alt+→)"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+      <button class="ib" data-cmd="reload" title="Обновить (F5)"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></svg></button>
+    </div>
+    <div class="drag" id="dragB" data-drag></div>
+    <div class="acts">
+      <button class="ib hidden" id="extbtn" data-pop="extensions" title="Расширения"><svg viewBox="0 0 24 24"><path d="M9 4h3v2a2 2 0 1 0 4 0V4h3v5h-2a2 2 0 1 0 0 4h2v7h-5v-2a2 2 0 1 0-4 0v2H5v-5h2a2 2 0 1 0 0-4H5V4z"/></svg></button>
+      <button class="ib hidden" id="dlbtn" data-pop="downloads" title="Загрузки (Ctrl+J)"><span class="ring-p"></span><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg></button>
+      <button class="ib" id="menubtn" data-pop="menu" title="Меню"><svg viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/></svg></button>
+    </div>
+
+    <label class="omni" id="omni">
+      <span class="lead" id="lead"></span>
+      <span class="chip hidden" id="privChip">Приватно</span>
+      <input id="addr" spellcheck="false" autocomplete="off" placeholder="Поиск или адрес">
+      <button class="ib" id="shieldBtn" data-pop="shield" title="OTIUM Shield — блокировка рекламы"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg><span class="cnt" id="shieldCnt"></span></button>
+      <button class="ib" id="starBtn" data-cmd="bookmark" title="Добавить в закладки (Ctrl+D)"><svg viewBox="0 0 24 24"><path d="M12 4l2.5 5.2 5.5.7-4 3.9 1 5.5L12 16.6 7 19.3l1-5.5-4-3.9 5.5-.7z"/></svg></button>
+      <div class="bar"></div>
+    </label>
+
+    <div id="pins"></div>
+    <div class="label"><span>Вкладки</span><span id="count"></span></div>
+    <div id="tabs"></div>
+    <button class="newtab" data-cmd="new_tab" title="Новая вкладка (Ctrl+T)">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>Новая вкладка</span><kbd>Ctrl T</kbd>
+    </button>
+
+    <div class="foot" data-drag>
+      <div class="logo"></div><div class="brand">OTIUM</div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const send = (o) => window.ipc.postMessage(JSON.stringify(o));
+  const ICONS = {
+    lock: '<svg viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>',
+    search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>',
+    globe: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 2.5 14.4 0 17M12 3.5c-2.5 2.6-2.5 14.4 0 17"/></svg>',
+    otium: '<svg viewBox="0 0 24 24" style="color:var(--a1)"><circle cx="12" cy="12" r="7"/></svg>',
+    max: '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2.5"/></svg>',
+    restore: '<svg viewBox="0 0 24 24"><rect x="5" y="8.5" width="10.5" height="10.5" rx="2.5"/><path d="M9 5.5h7a3 3 0 0 1 3 3v7"/></svg>',
+    x: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    gear: '<svg class="gear" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
+    sound: '<svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>',
+    mute: '<svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l4 6M21 9l-4 6"/></svg>',
+    mask: '<svg viewBox="0 0 24 24"><path d="M3 10c0-2 1.5-3 3-3h12c1.5 0 3 1 3 3 0 3-2 6-5 6-2 0-2.5-2-4-2s-2 2-4 2c-3 0-5-3-5-6z"/></svg>',
+  };
+  const SB_FULL = 264, SB_MINI = 60, CLASSIC_H = 82;
+
+  let state = { tabs: [], active: null, maximized: false, fullscreen: false, bookmarked: false, shield: { on: false, count: 0 }, downloads: { any: false, active: 0, progress: -1 }, exts: 0,
+    ui: { layout: 'sidebar', floating: true, fullUrl: false, accent: ['#8b5cf6', '#22d3ee', '#f472b6'] } };
+  const addr = $('#addr'), omni = $('#omni'), lead = $('#lead'), list = $('#tabs'), pins = $('#pins');
+  const nodes = new Map();
+  const body = document.body;
+  let openPop = null;
+
+  // ---------- layout ----------
+  let mini = false;
+  try { mini = localStorage.getItem('otium.mini') === '1'; } catch (_) {}
+  let lastLayout = '';
+  function applyLayout() {
+    const ui = state.ui, classic = ui.layout === 'classic';
+    const m = ui.floating ? 8 : 0;
+    body.classList.toggle('classic', classic);
+    body.classList.toggle('mini', mini && !classic);
+    body.classList.toggle('flat', !ui.floating);
+    const x = classic ? m : (mini ? SB_MINI : SB_FULL);
+    const y = classic ? CLASSIC_H : m;
+    const r = document.documentElement.style;
+    r.setProperty('--cx', x + 'px'); r.setProperty('--cy', y + 'px'); r.setProperty('--cm', m + 'px');
+    r.setProperty('--a1', ui.accent[0]); r.setProperty('--a2', ui.accent[1]);
+    const key = [x, y, m].join(',');
+    if (key !== lastLayout) { lastLayout = key; send({ cmd: 'layout', x, y, m }); }
+  }
+  function toggleSidebar() {
+    if (state.ui.layout === 'classic') return;
+    mini = !mini;
+    try { localStorage.setItem('otium.mini', mini ? '1' : '0'); } catch (_) {}
+    applyLayout();
+  }
+  $('#toggle').addEventListener('click', toggleSidebar);
+
+  // ---------- helpers ----------
+  const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (_) { return ''; } };
+  const prettyUrl = (u) => {
+    if (u.startsWith('otium://')) return u;
+    try {
+      const x = new URL(u);
+      return x.hostname.replace(/^www\./, '') + (x.pathname === '/' ? '' : x.pathname) + (x.search || '');
+    } catch (_) { return u; }
+  };
+  const hue = (s) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+  const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  const iconHtml = (t) => {
+    const mask = t.private ? `<span class="mask">${ICONS.mask}</span>` : '';
+    if (!t.url) return '<div class="logo"></div>' + mask;
+    if (t.url.startsWith('otium://')) return ICONS.gear;
+    const h = hostOf(t.url) || '?';
+    const letter = `<div class="letter" style="background:hsl(${hue(h)} 55% 42%)">${esc(h[0].toUpperCase())}</div>`;
+    if (!t.favicon) return letter + mask;
+    return `<img src="${esc(t.favicon)}" alt="" onerror="this.outerHTML=this.dataset.f" data-f="${esc(letter)}">` + mask;
+  };
+
+  // ---------- popovers ----------
+  const POP_W = { menu: 290, downloads: 360, extensions: 300, shield: 300, tabmenu: 240 };
+  function openPopover(kind, anchor, arg) {
+    const w = POP_W[kind] || 280;
+    let x, y;
+    if (anchor && anchor.getBoundingClientRect) {
+      const r = anchor.getBoundingClientRect();
+      const classic = state.ui.layout === 'classic';
+      x = classic || r.right + w > innerWidth ? r.right - w : r.left;
+      y = r.bottom + 6;
+      if (!classic && kind !== 'shield') { x = r.left; }
+    } else if (anchor) { x = anchor.x; y = anchor.y; }
+    else { x = innerWidth - w - 12; y = state.ui.layout === 'classic' ? CLASSIC_H : 50; }
+    document.querySelectorAll('.ib.open').forEach((b) => b.classList.remove('open'));
+    if (anchor && anchor.classList) anchor.classList.add('open');
+    openPop = kind;
+    send({ cmd: 'popover', kind, x: Math.round(x), y: Math.round(y), w, arg: arg ?? null });
+  }
+  document.querySelectorAll('[data-pop]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); openPopover(b.dataset.pop, b); }));
+
+  // ---------- tab list (keyed update) ----------
+  function makeTab(t) {
+    const el = document.createElement('div');
+    el.className = 'tab';
+    el.draggable = true;
+    el.innerHTML = '<div class="ico"></div><div class="t"></div><button class="snd" title="Звук"></button><button class="x" title="Закрыть (Ctrl+W)">' + ICONS.x + '</button>';
+    el.addEventListener('mousedown', (e) => {
+      if (e.button === 1) { e.preventDefault(); send({ cmd: 'close_tab', id: t.id }); }
+    });
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('.x')) send({ cmd: 'close_tab', id: t.id });
+      else if (e.target.closest('.snd')) send({ cmd: 'tab_action', id: t.id, action: 'mute' });
+      else send({ cmd: 'select_tab', id: t.id });
+    });
+    el.addEventListener('contextmenu', (e) => { e.preventDefault(); openPopover('tabmenu', { x: e.clientX, y: e.clientY }, t.id); });
+    el.addEventListener('dragstart', (e) => { el.classList.add('dragging'); e.dataTransfer.setData('text/otium-tab', String(t.id)); e.dataTransfer.effectAllowed = 'move'; });
+    el.addEventListener('dragend', () => { el.classList.remove('dragging'); document.querySelectorAll('.drop-before').forEach((n) => n.classList.remove('drop-before')); });
+    el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('drop-before'); });
+    el.addEventListener('dragleave', () => el.classList.remove('drop-before'));
+    el.addEventListener('drop', (e) => {
+      e.preventDefault();
+      el.classList.remove('drop-before');
+      const id = Number(e.dataTransfer.getData('text/otium-tab'));
+      const to = state.tabs.findIndex((x) => x.id === t.id);
+      const from = state.tabs.findIndex((x) => x.id === id);
+      if (id && from !== -1 && to !== -1 && id !== t.id) send({ cmd: 'move_tab', id, to: from < to ? to - 1 : to });
+    });
+    return el;
+  }
+
+  function renderTabs() {
+    const seen = new Set();
+    let pi = 0, ti = 0;
+    for (const t of state.tabs) {
+      seen.add(t.id);
+      let el = nodes.get(t.id);
+      if (!el) { el = makeTab(t); nodes.set(t.id, el); }
+      const title = t.title || (t.url ? prettyUrl(t.url) : t.private ? 'Приватная вкладка' : 'Новая вкладка');
+      const iconKey = (t.private ? 'p' : '') + (t.url ? (t.favicon || hostOf(t.url) || t.url) : '');
+      if (el._icon !== iconKey) { el._icon = iconKey; el.querySelector('.ico').innerHTML = iconHtml(t); }
+      if (el._title !== title) { el._title = title; el.querySelector('.t').textContent = title; el.title = title; }
+      el.classList.toggle('on', t.id === state.active);
+      el.classList.toggle('loading', !!t.loading);
+      el.classList.toggle('private', !!t.private);
+      el.classList.toggle('pinned', !!t.pinned);
+      el.classList.toggle('audio', !!t.audio);
+      el.classList.toggle('muted', !!t.muted);
+      const snd = t.muted ? 'm' : 's';
+      if (el._snd !== snd) { el._snd = snd; el.querySelector('.snd').innerHTML = t.muted ? ICONS.mute : ICONS.sound; }
+      const parent = t.pinned ? pins : list;
+      const idx = t.pinned ? pi++ : ti++;
+      if (parent.children[idx] !== el) parent.insertBefore(el, parent.children[idx] || null);
+    }
+    for (const [id, el] of nodes) if (!seen.has(id)) { el.remove(); nodes.delete(id); }
+    const normal = state.tabs.filter((t) => !t.pinned).length;
+    $('#count').textContent = normal > 1 ? normal : '';
+    const on = nodes.get(state.active);
+    if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    document.documentElement.style.setProperty('--pins-w', (pi * 42) + 'px');
+    body.classList.toggle('narrow', ti * 90 > window.innerWidth - 260 - pi * 42);
+  }
+
+  function renderOmni() {
+    const t = state.tabs.find((x) => x.id === state.active);
+    omni.classList.toggle('loading', !!(t && t.loading));
+    const url = t ? t.url : '';
+    const secure = url.startsWith('https://');
+    const web = /^https?:/.test(url);
+    lead.className = 'lead' + (secure ? ' secure' : '');
+    lead.innerHTML = !url ? ICONS.search : url.startsWith('otium://') ? ICONS.otium : secure ? ICONS.lock : ICONS.globe;
+    if (document.activeElement !== addr) addr.value = !url ? '' : state.ui.fullUrl ? url : prettyUrl(url);
+    addr.dataset.full = url;
+    $('#privChip').classList.toggle('hidden', !(t && t.private));
+    body.classList.toggle('private-active', !!(t && t.private));
+    $('#starBtn').classList.toggle('hidden', !web);
+    $('#starBtn').classList.toggle('on', !!state.bookmarked);
+    $('#starBtn').title = state.bookmarked ? 'Убрать из закладок (Ctrl+D)' : 'Добавить в закладки (Ctrl+D)';
+    const sb = $('#shieldBtn');
+    sb.classList.toggle('hidden', !web);
+    sb.classList.toggle('on', !!state.shield.on);
+    $('#shieldCnt').textContent = state.shield.on && state.shield.count ? (state.shield.count > 99 ? '99+' : state.shield.count) : '';
+    document.title = (t && t.title ? t.title + ' — ' : '') + 'OTIUM';
+  }
+
+  function renderActs() {
+    const d = state.downloads;
+    const dl = $('#dlbtn');
+    dl.classList.toggle('hidden', !d.any);
+    dl.style.setProperty('--p', d.active && d.progress >= 0 ? d.progress : 0);
+    dl.querySelector('.ring-p').style.display = d.active ? '' : 'none';
+    $('#extbtn').classList.toggle('hidden', !state.exts);
+  }
+
+  // ---------- suggestions ----------
+  let sugg = { q: '', items: [], remote: [] }, sel = -1, sugTimer;
+  const sugRows = () => {
+    const rows = [{ text: sugg.q }];
+    for (const it of sugg.items) rows.push(it.kind === 'tab' ? { tab: it.id } : { text: it.url });
+    for (const r of sugg.remote) if (r.toLowerCase() !== sugg.q.toLowerCase()) rows.push({ text: r });
+    return rows;
+  };
+  function requestSuggest() {
+    const r = omni.getBoundingClientRect();
+    const classic = state.ui.layout === 'classic';
+    const w = classic ? r.width : Math.max(520, r.width);
+    send({ cmd: 'suggest', q: addr.value, x: Math.round(r.left), y: Math.round(r.bottom + 4), w: Math.round(w) });
+  }
+
+  window.otium = {
+    render(s) {
+      state = s;
+      body.classList.toggle('max', s.maximized);
+      body.classList.toggle('fs', s.fullscreen);
+      $('#maxbtn').innerHTML = s.maximized ? ICONS.restore : ICONS.max;
+      applyLayout();
+      renderTabs();
+      renderOmni();
+      renderActs();
+    },
+    focusAddress() { addr.focus(); addr.select(); },
+    toggleSidebar,
+    openPopover(kind) { const b = document.querySelector(`[data-pop="${kind}"]`); openPopover(kind, b && !b.classList.contains('hidden') ? b : $('#menubtn')); },
+    popoverClosed() { openPop = null; document.querySelectorAll('.ib.open').forEach((b) => b.classList.remove('open')); },
+    suggestions(d) { sugg = { q: d.q, items: d.items, remote: [] }; sel = -1; },
+    remoteSuggestions(list) { sugg.remote = list; },
+    downloadStarted() { const b = $('#dlbtn'); b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); },
+  };
+
+  // ---------- omnibox ----------
+  addr.addEventListener('focus', () => {
+    omni.classList.add('focus');
+    addr.value = addr.dataset.full || '';
+    requestAnimationFrame(() => addr.select());
+  });
+  addr.addEventListener('blur', () => {
+    omni.classList.remove('focus');
+    renderOmni();
+    // give a click inside the suggestion popover time to land
+    setTimeout(() => { if (document.activeElement !== addr && openPop === 'suggest') { openPop = null; send({ cmd: 'hide' }); } }, 300);
+  });
+  addr.addEventListener('input', () => {
+    openPop = 'suggest';
+    clearTimeout(sugTimer);
+    sugTimer = setTimeout(requestSuggest, 40);
+  });
+  addr.addEventListener('keydown', (e) => {
+    const rows = sugRows();
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (openPop !== 'suggest' || !addr.value) return;
+      e.preventDefault();
+      sel = e.key === 'ArrowDown' ? Math.min(rows.length - 1, sel + 1) : Math.max(-1, sel - 1);
+      send({ cmd: 'suggest_sel', i: sel });
+      const r = rows[sel];
+      if (r && r.text != null) addr.value = r.text;
+      return;
+    }
+    if (e.key === 'Enter') {
+      const r = sel >= 0 ? rows[sel] : null;
+      openPop = null;
+      if (r && r.tab) send({ cmd: 'select_tab', id: r.tab });
+      else {
+        const text = addr.value.trim();
+        if (text) send({ cmd: 'navigate', text });
+      }
+      send({ cmd: 'hide' });
+      addr.blur();
+    } else if (e.key === 'Escape') {
+      if (openPop === 'suggest') { openPop = null; send({ cmd: 'hide' }); return; }
+      addr.value = addr.dataset.full || '';
+      addr.blur();
+    }
+  });
+
+  // ---------- buttons, drag, resize ----------
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-cmd]');
+    if (b) { e.preventDefault(); send({ cmd: b.dataset.cmd }); }
+  });
+  document.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    if (openPop && openPop !== 'suggest' && !e.target.closest('[data-pop]')) { send({ cmd: 'hide' }); }
+    const rz = e.target.closest('[data-rz]');
+    if (rz) { e.preventDefault(); send({ cmd: 'resize', dir: rz.dataset.rz }); return; }
+    if (e.target.closest('[data-drag]') && !e.target.closest('button')) {
+      e.preventDefault();
+      send({ cmd: e.detail === 2 ? 'maximize' : 'drag' });
+    }
+  });
+  list.addEventListener('dblclick', (e) => { if (e.target === list) send({ cmd: 'new_tab' }); });
+
+  // ---------- keyboard (when the chrome itself has focus) ----------
+  window.addEventListener('keydown', (e) => {
+    const c = e.ctrlKey || e.metaKey;
+    const key = e.key.toLowerCase();
+    let k = null;
+    if (c && !e.shiftKey && !e.altKey) {
+      if (key === 't') k = 'new_tab';
+      else if (key === 'w') k = 'close_tab';
+      else if (key === 'l') { otium.focusAddress(); e.preventDefault(); return; }
+      else if (key === 'r') k = 'reload';
+      else if (key === 'h') k = 'history';
+      else if (key === 'j') k = 'downloads';
+      else if (key === 'd') k = 'bookmark';
+      else if (e.key === ',') k = 'settings';
+      else if (e.key >= '1' && e.key <= '9') k = 'tab_' + e.key;
+    }
+    if (c && e.shiftKey && !e.altKey) {
+      if (key === 't') k = 'reopen_tab';
+      else if (key === 'n') k = 'new_private';
+      else if (key === 'b') k = 'toggle_sidebar';
+      else if (key === 'o') k = 'bookmarks';
+    }
+    if (c && e.key === 'Tab') k = e.shiftKey ? 'prev_tab' : 'next_tab';
+    if (e.key === 'F5') k = 'reload';
+    if (e.key === 'F11') k = 'fullscreen';
+    if (e.key === 'F12') k = 'devtools';
+    if (e.altKey && e.key === 'ArrowLeft') { send({ cmd: 'back' }); e.preventDefault(); return; }
+    if (e.altKey && e.key === 'ArrowRight') { send({ cmd: 'forward' }); e.preventDefault(); return; }
+    if (k) { e.preventDefault(); send({ cmd: 'key', k }); }
+  });
+  window.addEventListener('contextmenu', (e) => e.preventDefault());
+  window.addEventListener('resize', renderTabs);
+
+  $('#maxbtn').innerHTML = ICONS.max;
+  renderOmni();
+  send({ cmd: 'ready' });
+})();
+</script>
+</body>
+</html>

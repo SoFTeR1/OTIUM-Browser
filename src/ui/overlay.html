@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark">
+<title>overlay</title>
+<style>
+  :root { --a1: #8b5cf6; --a2: #22d3ee; --text: #ececf3; --muted: #8f8fa2; --faint: #60606f; --line: rgba(255,255,255,.08); --hover: rgba(255,255,255,.07); --bg: #181820; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); overflow: hidden; }
+  body { font: 13px/1.35 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; user-select: none; }
+  button { font: inherit; color: inherit; background: none; border: 0; text-align: left; }
+  svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  #root { border: 1px solid var(--line); border-radius: 0; min-height: 100vh; padding: 6px; animation: in .14s ease-out; }
+  @keyframes in { from { opacity: 0; transform: translateY(-4px); } }
+  .row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 34px; padding: 6px 10px; border-radius: 8px; color: #d6d6e0; }
+  .row:hover, .row.sel { background: var(--hover); color: var(--text); }
+  .row.sel { box-shadow: inset 2px 0 0 var(--a1); }
+  .row .ic { width: 18px; height: 18px; display: grid; place-items: center; color: var(--muted); flex: none; }
+  .row .ic img { width: 16px; height: 16px; border-radius: 3px; }
+  .row .main { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: baseline; overflow: hidden; }
+  .row .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .u { color: var(--faint); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+  .row kbd { font: 11px "Segoe UI", sans-serif; color: var(--faint); margin-left: auto; padding-left: 12px; }
+  .row b { color: var(--text); font-weight: 600; }
+  .tag { font-size: 11px; color: var(--a2); margin-left: auto; flex: none; }
+  .sep { height: 1px; background: var(--line); margin: 5px 4px; }
+  .head { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 6px; color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em; }
+  .head button { text-transform: none; letter-spacing: 0; color: var(--a2); font-size: 12px; }
+  .empty { padding: 22px 10px; text-align: center; color: var(--faint); }
+  .zoom { display: flex; align-items: center; gap: 4px; padding: 4px 10px; min-height: 34px; color: #d6d6e0; }
+  .zoom span { flex: 1; }
+  .zoom button { width: 28px; height: 26px; border-radius: 7px; display: grid; place-items: center; background: rgba(255,255,255,.05); }
+  .zoom button:hover { background: rgba(255,255,255,.1); }
+  .zoom .val { width: 48px; text-align: center; color: var(--text); }
+  .dl { padding: 8px 10px; border-radius: 8px; display: flex; gap: 10px; align-items: center; }
+  .dl:hover { background: var(--hover); }
+  .dl .info { flex: 1; min-width: 0; }
+  .dl .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dl .meta { color: var(--faint); font-size: 12px; margin-top: 2px; }
+  .dl .bar { height: 3px; border-radius: 2px; background: rgba(255,255,255,.08); margin-top: 6px; overflow: hidden; }
+  .dl .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--a1), var(--a2)); transition: width .3s; }
+  .dl .act { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; color: var(--muted); }
+  .dl .act:hover { background: rgba(255,255,255,.1); color: var(--text); }
+  .dl.failed .meta { color: #f87171; }
+  .ext img { width: 20px; height: 20px; border-radius: 4px; }
+  .ext.off { opacity: .45; }
+  .shield { padding: 14px 12px 10px; }
+  .shield .big { display: flex; align-items: center; gap: 12px; }
+  .shield .num { font-size: 30px; font-weight: 300; letter-spacing: -.02em; }
+  .shield .sub { color: var(--muted); font-size: 12px; }
+  .switch { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.04); }
+  .switch .txt { flex: 1; }
+  .sw { width: 38px; height: 22px; border-radius: 11px; background: rgba(255,255,255,.14); position: relative; flex: none; transition: background .2s; }
+  .sw::after { content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s; }
+  .sw.on { background: linear-gradient(120deg, var(--a1), var(--a2)); }
+  .sw.on::after { transform: translateX(16px); }
+  .shield-ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: linear-gradient(135deg, var(--a1), var(--a2)); color: #fff; }
+  .shield-ic.off { background: rgba(255,255,255,.08); color: var(--muted); }
+  .shield-ic svg { width: 22px; height: 22px; }
+  .foot { display: flex; justify-content: space-between; align-items: center; color: var(--faint); font-size: 12px; padding: 10px 2px 0; }
+  .foot button { color: var(--a2); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  window.OTIUM = /*__OTIUM__*/null;
+  const root = document.getElementById('root');
+  const send = (o) => window.ipc.postMessage(JSON.stringify(o));
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const I = {
+    search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>',
+    clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+    star: '<svg viewBox="0 0 24 24"><path d="M12 4l2.5 5.2 5.5.7-4 3.9 1 5.5L12 16.6 7 19.3l1-5.5-4-3.9 5.5-.7z"/></svg>',
+    tab: '<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="3"/><path d="M3.5 9h17"/></svg>',
+    plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+    mask: '<svg viewBox="0 0 24 24"><path d="M3 10c0-2 1.5-3 3-3h12c1.5 0 3 1 3 3 0 3-2 6-5 6-2 0-2.5-2-4-2s-2 2-4 2c-3 0-5-3-5-6z"/><circle cx="8" cy="10.5" r="1.3"/><circle cx="16" cy="10.5" r="1.3"/></svg>',
+    undo: '<svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-2"/></svg>',
+    history: '<svg viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3.5 4v4h4M12 8v4l3 2"/></svg>',
+    books: '<svg viewBox="0 0 24 24"><path d="M6 4h12v16l-6-4-6 4z"/></svg>',
+    down: '<svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
+    puzzle: '<svg viewBox="0 0 24 24"><path d="M9 4h3v2a2 2 0 1 0 4 0V4h3v5h-2a2 2 0 1 0 0 4h2v7h-5v-2a2 2 0 1 0-4 0v2H5v-5h2a2 2 0 1 0 0-4H5V4z"/></svg>',
+    pip: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><rect x="12" y="11" width="6" height="5" rx="1"/></svg>',
+    print: '<svg viewBox="0 0 24 24"><path d="M7 9V4h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><rect x="7" y="14" width="10" height="6" rx="1"/></svg>',
+    code: '<svg viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg>',
+    gear: '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
+    pin: '<svg viewBox="0 0 24 24"><path d="M9 4h6l-1 5 4 3v2H6v-2l4-3z"/><path d="M12 14v6"/></svg>',
+    copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
+    mute: '<svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l4 6M21 9l-4 6"/></svg>',
+    sound: '<svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>',
+    reload: '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></svg>',
+    x: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    folder: '<svg viewBox="0 0 24 24"><path d="M3.5 7a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>',
+    shield: '<svg viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
+    find: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2M8.5 11h5"/></svg>',
+  };
+  const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (_) { return u; } };
+  const size = (n) => n < 0 ? '?' : n < 1024 ? n + ' Б' : n < 1048576 ? (n / 1024).toFixed(0) + ' КБ' : n < 1073741824 ? (n / 1048576).toFixed(1) + ' МБ' : (n / 1073741824).toFixed(2) + ' ГБ';
+
+  let kind = null, data = null, sel = -1, remote = [];
+  const report = () => requestAnimationFrame(() => send({ cmd: 'ov_size', h: Math.ceil(root.getBoundingClientRect().height) }));
+  const act = (o) => send(o);
+
+  // ---------------------------------------------------------------- renderers
+  const R = {
+    suggest() {
+      const rows = [];
+      const q = data.q;
+      rows.push({ icon: I.search, html: `<span class="t"><b>${esc(q)}</b></span><span class="u">— поиск в ${esc(data.engine)}</span>`, go: { cmd: 'navigate', text: q } });
+      for (const it of data.items) {
+        const icon = it.kind === 'bookmark' ? I.star : it.kind === 'tab' ? I.tab : I.clock;
+        const tag = it.kind === 'tab' ? '<span class="tag">Перейти к вкладке</span>' : '';
+        rows.push({ icon, html: `<span class="t">${esc(it.title || hostOf(it.url))}</span><span class="u">${esc(it.url.replace(/^https?:\/\/(www\.)?/, ''))}</span>${tag}`,
+          go: it.kind === 'tab' ? { cmd: 'select_tab', id: it.id } : { cmd: 'navigate', text: it.url } });
+      }
+      for (const r of remote) {
+        if (r.toLowerCase() === q.toLowerCase()) continue;
+        rows.push({ icon: I.search, html: `<span class="t">${esc(r)}</span>`, go: { cmd: 'navigate', text: r } });
+      }
+      root._rows = rows;
+      root.innerHTML = rows.map((r, i) => `<button class="row${i === sel ? ' sel' : ''}" data-i="${i}"><span class="ic">${r.icon}</span><span class="main">${r.html}</span></button>`).join('');
+    },
+    menu() {
+      const z = Math.round((data.zoom || 1) * 100);
+      const item = (a, icon, label, key, dis) => `<button class="row" data-menu="${a}" ${dis ? 'disabled style="opacity:.4"' : ''}><span class="ic">${icon}</span><span class="main"><span class="t">${label}</span></span>${key ? `<kbd>${key}</kbd>` : ''}</button>`;
+      root.innerHTML =
+        item('new_tab', I.plus, 'Новая вкладка', 'Ctrl+T') +
+        item('new_private', I.mask, 'Приватная вкладка', 'Ctrl+Shift+N') +
+        item('reopen_tab', I.undo, 'Вернуть закрытую вкладку', 'Ctrl+Shift+T', !data.canReopen) +
+        '<div class="sep"></div>' +
+        item('history', I.history, 'История', 'Ctrl+H') +
+        item('bookmarks', I.books, 'Закладки', 'Ctrl+Shift+O') +
+        item('downloads', I.down, 'Загрузки', 'Ctrl+J') +
+        item('extensions', I.puzzle, 'Расширения') +
+        '<div class="sep"></div>' +
+        `<div class="zoom"><span>Масштаб</span><button data-menu="zoom_out">−</button><span class="val">${z}%</span><button data-menu="zoom_in">+</button><button data-menu="zoom_reset" title="Сбросить">↺</button></div>` +
+        item('pip', I.pip, 'Картинка в картинке') +
+        item('print', I.print, 'Печать…', 'Ctrl+P') +
+        item('devtools', I.code, 'Инструменты разработчика', 'F12') +
+        '<div class="sep"></div>' +
+        item('settings', I.gear, 'Настройки', 'Ctrl+,');
+    },
+    tabmenu() {
+      if (!data) return hide();
+      const item = (a, icon, label) => `<button class="row" data-tab="${a}"><span class="ic">${icon}</span><span class="main"><span class="t">${label}</span></span></button>`;
+      root.innerHTML =
+        item('pin', I.pin, data.pinned ? 'Открепить' : 'Закрепить') +
+        item('duplicate', I.copy, 'Дублировать') +
+        item('reload', I.reload, 'Перезагрузить') +
+        item('mute', data.muted ? I.sound : I.mute, data.muted ? 'Включить звук' : 'Выключить звук') +
+        (data.private ? '' : item('bookmark', I.star, 'В закладки / убрать')) +
+        '<div class="sep"></div>' +
+        (data.count > 1 ? item('close_others', I.x, 'Закрыть другие вкладки') + item('close_right', I.x, 'Закрыть вкладки справа') : '') +
+        item('close', I.x, 'Закрыть вкладку');
+    },
+    downloads() {
+      const items = data.items || [];
+      root.innerHTML = `<div class="head"><span>Загрузки</span>${items.some((d) => d.state !== 'progress') ? '<button data-clear>Очистить</button>' : ''}</div>` +
+        (items.length ? items.map((d) => {
+          const pct = d.total > 0 ? Math.min(100, d.received / d.total * 100) : 0;
+          const meta = d.state === 'progress' ? `${size(d.received)} из ${size(d.total)}` : d.state === 'failed' ? 'Не удалось / отменено' : `${size(d.total)} · ${hostOf(d.url)}`;
+          return `<div class="dl ${d.state}"><span class="ic">${I.down}</span><div class="info"><div class="name" title="${esc(d.path)}">${esc(d.name || hostOf(d.url))}</div><div class="meta">${meta}</div>${d.state === 'progress' ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ''}</div>` +
+            (d.state === 'progress' ? `<button class="act" data-cancel="${d.id}" title="Отменить">${I.x}</button>`
+              : d.state === 'done' ? `<button class="act" data-open="${d.id}" title="Открыть">${I.down}</button><button class="act" data-folder="${d.id}" title="Показать в папке">${I.folder}</button>` : '') + '</div>';
+        }).join('') : '<div class="empty">Пока ничего не скачано</div>');
+    },
+    extensions() {
+      const items = data.items || [];
+      root.innerHTML = '<div class="head"><span>Расширения</span><button data-manage>Управление</button></div>' +
+        (items.length ? items.map((e) => `<button class="row ext${e.enabled ? '' : ' off'}" data-ext="${esc(e.id)}" ${e.popup ? '' : 'data-nopopup="1"'}>
+          <span class="ic">${e.icon ? `<img src="${esc(e.icon)}">` : I.puzzle}</span><span class="main"><span class="t">${esc(e.name)}</span></span>
+          ${e.popup ? '' : '<span class="tag" style="color:var(--faint)">без окна</span>'}</button>`).join('')
+          : '<div class="empty">Расширений пока нет.<br>Установите их в настройках по ссылке из Chrome Web Store.</div>');
+    },
+    shield() {
+      const d = data, on = d.enabled && d.siteOn;
+      root.innerHTML = `<div class="shield">
+        <div class="big"><div class="shield-ic${on ? '' : ' off'}">${I.shield}</div>
+          <div><div class="num">${d.blocked}</div><div class="sub">заблокировано на этой странице</div></div></div>
+        ${d.host ? `<button class="switch" data-site style="width:100%"><span class="txt">Защита на <b>${esc(d.host)}</b></span><span class="sw${d.siteOn ? ' on' : ''}"></span></button>` : ''}
+        <div class="foot"><span>${d.ready ? `Всего за сеанс: ${d.total}` : d.updating ? 'Загружаю списки фильтров…' : 'Списки фильтров не загружены'}</span>
+          <button data-upd>${d.updating ? '' : 'Обновить списки'}</button></div>
+        ${d.enabled ? '' : '<div class="sub" style="margin-top:8px">Блокировщик выключен в настройках</div>'}
+      </div>`;
+    },
+  };
+
+  function render() { if (kind && R[kind]) R[kind](); report(); }
+  function hide() { kind = null; root.innerHTML = ''; }
+
+  window.ov = {
+    show(k, d) {
+      kind = k; data = d; sel = -1; remote = [];
+      if (d && d._accent) { document.documentElement.style.setProperty('--a1', d._accent[0]); document.documentElement.style.setProperty('--a2', d._accent[1]); }
+      root.style.animation = 'none'; root.offsetHeight; root.style.animation = '';
+      render();
+    },
+    update(d) { data = Object.assign({}, data, d); render(); },
+    remote(list) { remote = list || []; render(); },
+    select(i) { sel = i; render(); },
+    hide,
+  };
+
+  root.addEventListener('mousedown', (e) => e.preventDefault()); // keep focus where it is (address bar)
+  root.addEventListener('click', (e) => {
+    const t = e.target.closest('button'); if (!t) return;
+    if (t.dataset.i != null) { const r = root._rows[+t.dataset.i]; if (r) act(r.go); return; }
+    if (t.dataset.menu) return act({ cmd: 'menu', action: t.dataset.menu });
+    if (t.dataset.tab) return act({ cmd: 'tab_action', id: data.id, action: t.dataset.tab });
+    if (t.dataset.open) return act({ cmd: 'download_open', id: +t.dataset.open, folder: false });
+    if (t.dataset.folder) return act({ cmd: 'download_open', id: +t.dataset.folder, folder: true });
+    if (t.dataset.cancel) return act({ cmd: 'download_cancel', id: +t.dataset.cancel });
+    if (t.dataset.clear != null) return act({ cmd: 'downloads_clear' });
+    if (t.dataset.manage != null) return act({ cmd: 'menu', action: 'extensions' });
+    if (t.dataset.ext) return t.dataset.nopopup ? act({ cmd: 'menu', action: 'extensions' }) : act({ cmd: 'ext_open', id: t.dataset.ext, page: 'popup' });
+    if (t.dataset.site != null) return act({ cmd: 'shield_toggle_site' });
+    if (t.dataset.upd != null) return act({ cmd: 'shield_update' });
+  });
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape') act({ cmd: 'hide' }); });
+  window.addEventListener('blur', () => { if (kind && kind !== 'suggest') act({ cmd: 'hide' }); });
+  window.addEventListener('contextmenu', (e) => e.preventDefault());
+</script>
+</body>
+</html>

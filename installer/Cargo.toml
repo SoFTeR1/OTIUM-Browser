@@ -1,0 +1,16 @@
+[package]
+name = "otium-installer"
+version = "0.2.0"
+edition = "2021"
+description = "Installer for the OTIUM browser"
+build = "build.rs"
+
+[[bin]]
+name = "otium-setup"
+path = "src/main.rs"
+
+[dependencies]
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
+
+[build-dependencies]
+winresource = "0.1.34"
