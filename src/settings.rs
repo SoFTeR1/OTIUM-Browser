@@ -117,10 +117,9 @@ impl Settings {
             .unwrap_or_default()
     }
 
-    pub fn save(&self, path: &Path) {
-        if let Ok(text) = serde_json::to_string_pretty(self) {
-            let _ = fs::write(path, text);
-        }
+    pub fn save(&self, path: &Path) -> std::io::Result<()> {
+        let text = serde_json::to_string_pretty(self).map_err(std::io::Error::other)?;
+        fs::write(path, text)
     }
 
     /// Merge a partial JSON object into the settings. Unknown or ill-typed keys are rejected.

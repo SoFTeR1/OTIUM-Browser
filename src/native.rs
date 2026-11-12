@@ -327,10 +327,27 @@ pub fn dpapi_protect(data: &[u8]) -> Option<Vec<u8>> {
 }
 
 pub mod log {
+    use std::io::Write;
+
+    /// Problems worth diagnosing later go to `otium.log` in the profile (kept under 256 KB).
     pub fn warn(msg: &str) {
         #[cfg(debug_assertions)]
         eprintln!("otium: {msg}");
-        #[cfg(not(debug_assertions))]
-        let _ = msg;
+        let path = crate::util::data_dir().join("otium.log");
+        if std::fs::metadata(&path).is_ok_and(|m| m.len() > 256 * 1024) {
+            let _ = std::fs::rename(&path, path.with_extension("log.old"));
+        }
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+            let s = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0) % 86400;
+            let _ = writeln!(
+                f,
+                "{} {:02}:{:02}:{:02} UTC v{}: {msg}",
+                crate::util::today(),
+                s / 3600,
+                s % 3600 / 60,
+                s % 60,
+                env!("CARGO_PKG_VERSION")
+            );
+        }
     }
 }

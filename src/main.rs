@@ -312,6 +312,8 @@ fn html_response(status: u16, body: Cow<'static, [u8]>) -> Response<Cow<'static,
         .status(status)
         .header(CONTENT_TYPE, "text/html; charset=utf-8")
         .header("X-Frame-Options", "DENY")
+        // internal pages carry live settings; never let the HTTP cache serve a stale copy
+        .header("Cache-Control", "no-store")
         .header("Content-Security-Policy", "frame-ancestors 'none'")
         .body(body)
         .unwrap()
@@ -1044,10 +1046,20 @@ impl App {
     }
 
     /// Apply a settings patch coming from an internal page.
-    fn apply_patch(&mut self, patch: &Value) {
+    /// Returns whether the change was saved to disk.
+    fn apply_patch(&mut self, patch: &Value) -> bool {
         let old = self.cfg();
-        let Some(new) = old.patched(patch) else { return };
-        new.save(&self.data_dir.join("settings.json"));
+        let Some(new) = old.patched(patch) else {
+            native::log::warn(&format!("settings patch rejected: {patch}"));
+            return false;
+        };
+        let saved = match new.save(&self.data_dir.join("settings.json")) {
+            Ok(()) => true,
+            Err(e) => {
+                native::log::warn(&format!("settings not saved: {e}"));
+                false
+            }
+        };
         *self.settings.write().unwrap() = new.clone();
 
         if new.site_theme != old.site_theme {
@@ -1075,6 +1087,7 @@ impl App {
             let _ = v.evaluate_script(&js);
         }
         self.sync();
+        saved
     }
 
     /// Restart the browser, optionally running a vault operation in between.
@@ -1436,7 +1449,9 @@ impl App {
             Cmd::Key { k } => self.shortcut(&k),
             Cmd::Dismiss | Cmd::Hide => self.hide_popover(),
             Cmd::OpenSettings => self.open_internal(SETTINGS_URL),
-            Cmd::Set { patch } => self.apply_patch(&patch),
+            Cmd::Set { patch } => {
+                self.apply_patch(&patch);
+            }
             Cmd::Restart => self.restart_with(None),
             Cmd::ClearData => {
                 if let Some(v) = self.current().and_then(|t| t.view.as_ref()) {
@@ -1769,8 +1784,18 @@ impl App {
     /// pages only get a harmless subset; privileged commands require the
     /// message to come from an internal otium:// page.
     fn handle_content(&mut self, id: u32, uri: &str, msg: &str) {
-        let Some(i) = self.index_of(id) else { return };
-        let Ok(cmd) = serde_json::from_str::<Cmd>(msg) else { return };
+        let Some(i) = self.index_of(id) else {
+            if util::is_internal(uri) {
+                native::log::warn(&format!("message from unknown tab {id} ({uri}) dropped"));
+            }
+            return;
+        };
+        let Ok(cmd) = serde_json::from_str::<Cmd>(msg) else {
+            if util::is_internal(uri) {
+                native::log::warn(&format!("unparsable message from {uri}: {}", msg.chars().take(200).collect::<String>()));
+            }
+            return;
+        };
         let internal = util::is_internal(uri) && util::is_internal(&self.tabs[i].url);
         match cmd {
             Cmd::Key { k } if i == self.active => self.shortcut(&k),
@@ -1798,7 +1823,13 @@ impl App {
                 }
             }
             Cmd::Navigate { text } if internal => self.navigate_tab(i, &text),
-            Cmd::Set { patch } if internal => self.apply_patch(&patch),
+            Cmd::Set { patch } if internal => {
+                let ok = self.apply_patch(&patch);
+                // the settings page waits for this and warns if it never comes
+                if let Some(i) = self.index_of(id) {
+                    self.reply(i, "saved", &json!(ok));
+                }
+            }
             Cmd::OpenSettings if internal => self.open_internal(SETTINGS_URL),
             Cmd::Restart if internal => self.restart_with(None),
             Cmd::ShieldUpdate if internal => self.handle_cmd(Cmd::ShieldUpdate),
@@ -1812,7 +1843,17 @@ impl App {
                 }
             }
             other if internal => self.handle_internal(Some(i), other),
-            _ => {}
+            _ => {
+                // an internal page whose command was refused: worth knowing why
+                if util::is_internal(uri) {
+                    let name = serde_json::from_str::<Value>(msg).ok().and_then(|v| v["cmd"].as_str().map(String::from));
+                    native::log::warn(&format!(
+                        "command {:?} from {uri} refused: tab {id} is at {:?}",
+                        name.unwrap_or_default(),
+                        self.tabs[i].url
+                    ));
+                }
+            }
         }
     }
 

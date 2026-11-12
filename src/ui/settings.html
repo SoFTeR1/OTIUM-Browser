@@ -362,14 +362,25 @@
   const send = (o) => window.otiumSend && window.otiumSend(o);
   let S = null, toastT;
   const toast = (msg) => { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1600); };
-  const set = (patch, msg) => { Object.assign(S.settings, patch); render(); send({ cmd: 'set', patch }); toast(msg || 'Сохранено'); };
+  // the browser confirms every save; if it doesn't, say so instead of silently losing the change
+  let pendingSaves = 0, saveT;
+  const set = (patch, msg) => {
+    Object.assign(S.settings, patch); render(); send({ cmd: 'set', patch }); toast(msg || 'Сохранено');
+    pendingSaves++; clearTimeout(saveT);
+    saveT = setTimeout(() => { if (pendingSaves > 0) { pendingSaves = 0; toastErr('Настройка не сохранилась — перезапустите OTIUM'); } }, 2500);
+  };
 
   // toggles
   document.querySelectorAll('[data-key]').forEach((el) => el.addEventListener('change', () => set({ [el.dataset.key]: el.checked })));
   // layout
   document.querySelectorAll('[data-layout]').forEach((b) => b.addEventListener('click', () => set({ layout: b.dataset.layout })));
   // site theme
-  $('siteTheme').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) set({ site_theme: b.dataset.v }); });
+  $('siteTheme').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    // forced darkening would keep sites dark anyway, so a light choice turns it off
+    if (b.dataset.v === 'light' && S.settings.force_dark) set({ site_theme: 'light', force_dark: false }, 'Светлая тема · затемнение сайтов выключено');
+    else set({ site_theme: b.dataset.v });
+  });
   // engines
   $('engines').addEventListener('click', (e) => {
     const b = e.target.closest('[data-engine]'); if (!b) return;
@@ -519,6 +530,7 @@
 
   window.otiumData = async (what, d) => {
     if (what === 'runtime') { RT = d; renderRuntime(); }
+    else if (what === 'saved') { pendingSaves = Math.max(0, pendingSaves - 1); if (!d) toastErr('Не удалось записать настройки на диск'); }
     else if (what === 'toast') { if (d.ok) { $('toast').classList.remove('err'); toast(d.msg); } else toastErr(d.msg); if (d.ok) $('extUrl').value = ''; }
     else if (what === 'vault_file') {
       const s = await askSecret('Восстановить профиль', `Файл: <b>${esc(d.path.split(/[\\/]/).pop())}</b><br>Введите пароль, PIN-код или секретное слово, которым он защищён. Текущий профиль будет заменён, OTIUM перезапустится.`);
