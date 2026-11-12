@@ -66,6 +66,14 @@ fn known_folder(id: &windows::core::GUID) -> Option<PathBuf> {
     }
 }
 
+/// System RAM state: (percent of physical memory in use, available bytes).
+pub fn memory() -> Option<(u32, u64)> {
+    use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+    let mut st = MEMORYSTATUSEX { dwLength: std::mem::size_of::<MEMORYSTATUSEX>() as u32, ..Default::default() };
+    unsafe { GlobalMemoryStatusEx(&mut st).ok()? };
+    Some((st.dwMemoryLoad, st.ullAvailPhys))
+}
+
 /// `otium-browser.exe --uninstall`, registered as the uninstall command by the installer.
 pub fn uninstall() {
     use windows::Win32::UI::Shell::{FOLDERID_Desktop, FOLDERID_Programs};
@@ -84,6 +92,7 @@ pub fn uninstall() {
     let _ = std::process::Command::new("reg")
         .args(["delete", r"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\OTIUM Browser", "/f"])
         .output();
+    crate::integrate::unregister();
     if !keep {
         let _ = std::fs::remove_dir_all(crate::util::data_dir());
     }

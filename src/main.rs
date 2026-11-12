@@ -11,11 +11,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod extensions;
+mod instance;
+mod integrate;
 mod native;
 mod settings;
 mod shield;
 mod store;
 mod sys;
+mod update;
 mod util;
 mod vault;
 
@@ -28,7 +31,7 @@ use std::{
     path::{Path, PathBuf},
     rc::Rc,
     sync::{Arc, RwLock},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use extensions::ExtMeta;
@@ -65,6 +68,18 @@ pub const SETTINGS_URL: &str = "http://otium.localhost/settings";
 pub const HISTORY_URL: &str = "http://otium.localhost/history";
 pub const BOOKMARKS_URL: &str = "http://otium.localhost/bookmarks";
 const OVERLAY_URL: &str = "http://otium.localhost/overlay";
+/// With "sleep tabs" on, background tabs stay alive while RAM is plentiful. Under memory
+/// pressure the longest-unused ones are unloaded first (like Chrome's Memory Saver); tabs
+/// forgotten for hours are unloaded regardless.
+const TICK: Duration = Duration::from_secs(20);
+/// a tab you just left is never unloaded, even under pressure
+const DISCARD_MIN_IDLE: Duration = Duration::from_secs(60);
+const DISCARD_FORGOTTEN: Duration = Duration::from_secs(2 * 60 * 60);
+/// pressure: RAM load % or free bytes below which tabs get unloaded
+const PRESSURE_LOAD: u32 = 85;
+const PRESSURE_FREE: u64 = 1536 << 20;
+/// critical: unload several tabs per tick instead of one
+const CRITICAL_LOAD: u32 = 93;
 const BG: (u8, u8, u8, u8) = (10, 10, 14, 255);
 /// wry's default WebView2 flags (replaced when we pass our own).
 const BASE_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection";
@@ -87,6 +102,12 @@ enum UserEvent {
     ExtDownloaded(Result<PathBuf, String>),
     ExtAdded(PathBuf, Result<native::ExtInfo, String>),
     ExtList(Vec<native::ExtInfo>),
+    /// periodic housekeeping (unloading idle background tabs, update checks)
+    Tick,
+    /// a link (or "" to just show the window) from a later launch of the browser
+    Remote(String),
+    /// result of an update check: Ok(Some((version, exe))) when one is downloaded
+    Update(Result<Option<(String, PathBuf)>, String>),
     Exit,
 }
 
@@ -152,11 +173,34 @@ enum Cmd {
     VaultExport { secret: String },
     VaultPick,
     VaultImport { path: String, secret: String },
+    // system integration
+    MakeDefault,
+    UpdateCheck,
+    UpdateNow,
 }
+
+/// Auto-update progress (only the installed copy updates itself).
+#[derive(Default)]
+struct UpdateState {
+    busy: bool,
+    /// downloaded and verified: (version, exe path)
+    ready: Option<(String, PathBuf)>,
+    error: String,
+    up_to_date: bool,
+    checked: Option<Instant>,
+}
+
+/// how often the installed browser looks for a new release
+const UPDATE_EVERY: Duration = Duration::from_secs(6 * 60 * 60);
+/// first check shortly after start, not during it
+const UPDATE_FIRST: Duration = Duration::from_secs(40);
 
 struct Tab {
     id: u32,
-    view: WebView,
+    /// `None` while the tab is unloaded (restored lazily or discarded when idle)
+    view: Option<WebView>,
+    /// last time this tab was the active one
+    seen: Instant,
     url: String,
     title: String,
     favicon: String,
@@ -168,10 +212,32 @@ struct Tab {
     zoom: f64,
 }
 
+impl Tab {
+    fn new(id: u32, view: Option<WebView>, url: &str, private: bool) -> Self {
+        Tab {
+            id,
+            loading: view.is_some(),
+            view,
+            seen: Instant::now(),
+            url: url.to_string(),
+            title: String::new(),
+            favicon: String::new(),
+            private,
+            pinned: false,
+            audio: false,
+            muted: false,
+            zoom: 1.0,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Default)]
 #[serde(default)]
 struct Session {
     tabs: Vec<String>,
+    /// titles and favicons, so unloaded tabs still look right in the strip
+    titles: Vec<String>,
+    favicons: Vec<String>,
     pinned: Vec<usize>,
     active: usize,
     /// window geometry in logical px: x, y, w, h
@@ -222,7 +288,7 @@ struct App {
     /// kind of the visible popover, if any
     popover: Option<String>,
     /// last closed popover, so a click on its toggle button doesn't reopen it at once
-    last_hidden: Option<(String, std::time::Instant)>,
+    last_hidden: Option<(String, Instant)>,
     suggest_seq: u64,
     suggest_items: Vec<Value>,
     /// whether the WebView2 environment was started with forced dark mode
@@ -234,6 +300,10 @@ struct App {
     fullscreen: bool,
     html_fullscreen: bool,
     data_dir: PathBuf,
+    /// path of the installed exe; None for dev/portable builds (no registration, no updates)
+    installed: Option<PathBuf>,
+    update: UpdateState,
+    started: Instant,
     window: Window,
 }
 
@@ -282,7 +352,7 @@ fn rect(x: f64, y: f64, w: f64, h: f64) -> Rect {
 }
 
 impl App {
-    fn new(window: Window, proxy: EventLoopProxy<UserEvent>, session: Session) -> wry::Result<Self> {
+    fn new(window: Window, proxy: EventLoopProxy<UserEvent>, session: Session, target: Option<String>) -> wry::Result<Self> {
         let data_dir = util::data_dir();
         let _ = fs::create_dir_all(&data_dir);
         let settings = Settings::load(&data_dir.join("settings.json"));
@@ -389,21 +459,34 @@ impl App {
             fullscreen: false,
             html_fullscreen: false,
             data_dir,
+            installed: integrate::installed_exe(),
+            update: UpdateState::default(),
+            started: Instant::now(),
             window,
         };
+        if let Some(exe) = &app.installed {
+            update::cleanup(exe, &app.data_dir.join("update"));
+            integrate::ensure_registered(exe, env!("CARGO_PKG_VERSION"));
+        }
 
         if cfg.restore_session && !session.tabs.is_empty() {
             let active = session.active.min(session.tabs.len() - 1);
+            // only the active tab is loaded now; the rest load on first visit
             for (i, url) in session.tabs.iter().enumerate() {
-                app.open_tab(url, i == active, false);
-                if session.pinned.contains(&i) {
-                    if let Some(t) = app.tabs.last_mut() {
-                        t.pinned = true;
-                    }
-                }
+                let id = app.next_id;
+                app.next_id += 1;
+                let mut tab = Tab::new(id, None, url, false);
+                tab.title = session.titles.get(i).cloned().unwrap_or_default();
+                tab.favicon = session.favicons.get(i).cloned().unwrap_or_default();
+                tab.pinned = session.pinned.contains(&i);
+                app.tabs.push(tab);
+            }
+            match &target {
+                Some(url) => app.open_tab(url, true, false),
+                None => app.activate(active),
             }
         } else {
-            app.open_tab(NEWTAB_URL, true, false);
+            app.open_tab(target.as_deref().unwrap_or(NEWTAB_URL), true, false);
         }
         if needs_build {
             app.rebuild_shield();
@@ -436,6 +519,8 @@ impl App {
         let size = self.window.inner_size().to_logical::<f64>(self.window.scale_factor());
         let s = Session {
             tabs: normal.iter().map(|t| t.url.clone()).collect(),
+            titles: normal.iter().map(|t| t.title.clone()).collect(),
+            favicons: normal.iter().map(|t| t.favicon.clone()).collect(),
             pinned: normal.iter().enumerate().filter(|(_, t)| t.pinned).map(|(i, _)| i).collect(),
             active: normal.iter().position(|t| Some(t.id) == active_id).unwrap_or(0),
             window: if self.window.is_maximized() || self.fullscreen {
@@ -474,8 +559,8 @@ impl App {
         self.hide_popover();
         let _ = self.chrome.set_bounds(full_rect(&self.window));
         let r = self.content_rect();
-        for t in &self.tabs {
-            let _ = t.view.set_bounds(r);
+        for v in self.tabs.iter().filter_map(|t| t.view.as_ref()) {
+            let _ = v.set_bounds(r);
         }
         self.sync();
     }
@@ -483,6 +568,28 @@ impl App {
     fn open_tab(&mut self, url: &str, activate: bool, private: bool) {
         let id = self.next_id;
         self.next_id += 1;
+        let Some(view) = self.make_view(id, url, private) else { return };
+        let tab = Tab::new(id, Some(view), url, private);
+        // new tabs go right after the current one (pinned tabs stay first)
+        let pos = if self.tabs.is_empty() { 0 } else { (self.active + 1).max(self.pinned_count()).min(self.tabs.len()) };
+        self.tabs.insert(pos, tab);
+        if !activate && pos <= self.active && !self.tabs.is_empty() {
+            self.active += 1;
+        }
+        if activate {
+            self.activate(pos);
+        } else {
+            if self.settings.read().unwrap().sleep_tabs {
+                if let Some(v) = &self.tabs[pos].view {
+                    let _ = v.set_memory_usage_level(MemoryUsageLevel::Low);
+                }
+            }
+            self.sync();
+        }
+    }
+
+    /// Create the content webview for a tab (hidden; `activate` shows it).
+    fn make_view(&mut self, id: u32, url: &str, private: bool) -> Option<WebView> {
         let bounds = self.content_rect();
         let theme = theme_of(&self.settings.read().unwrap());
 
@@ -523,7 +630,7 @@ impl App {
             Ok(v) => v,
             Err(e) => {
                 native::log::warn(&format!("failed to create tab: {e}"));
-                return;
+                return None;
             }
         };
         let _ = view.set_theme(theme);
@@ -559,34 +666,66 @@ impl App {
             }
             block
         });
+        Some(view)
+    }
 
-        let tab = Tab {
-            id,
-            view,
-            url: url.to_string(),
-            title: String::new(),
-            favicon: String::new(),
-            loading: true,
-            private,
-            pinned: false,
-            audio: false,
-            muted: false,
-            zoom: 1.0,
-        };
-        // new tabs go right after the current one (pinned tabs stay first)
-        let pos = if self.tabs.is_empty() { 0 } else { (self.active + 1).max(self.pinned_count()).min(self.tabs.len()) };
-        self.tabs.insert(pos, tab);
-        if !activate && pos <= self.active && !self.tabs.is_empty() {
-            self.active += 1;
+    /// Load an unloaded tab back into a live webview.
+    fn ensure_loaded(&mut self, idx: usize) {
+        if self.tabs[idx].view.is_some() {
+            return;
         }
-        if activate {
-            self.activate(pos);
+        let (id, url, private) = (self.tabs[idx].id, self.tabs[idx].url.clone(), self.tabs[idx].private);
+        let Some(view) = self.make_view(id, &url, private) else { return };
+        let t = &mut self.tabs[idx];
+        if (t.zoom - 1.0).abs() > f64::EPSILON {
+            let _ = view.zoom(t.zoom);
+        }
+        if t.muted {
+            native::set_muted(&view, true);
+        }
+        t.loading = true;
+        t.view = Some(view);
+    }
+
+    /// Unload background tabs: the longest-unused first while RAM is short, plus any
+    /// tab nobody has looked at for hours.
+    fn discard_idle(&mut self) {
+        if !self.settings.read().unwrap().sleep_tabs {
+            return;
+        }
+        // a download may belong to a background tab; dropping it would cancel the download
+        if self.downloads.iter().any(|d| d.state == "progress") {
+            return;
+        }
+        let active = self.active;
+        // candidates, longest-unused first
+        let mut idle: Vec<usize> = (0..self.tabs.len())
+            .filter(|&i| {
+                let t = &self.tabs[i];
+                i != active && t.view.is_some() && !t.audio && !t.private && t.seen.elapsed() >= DISCARD_MIN_IDLE
+            })
+            .collect();
+        idle.sort_by_key(|&i| self.tabs[i].seen);
+
+        let (load, free) = util::memory().unwrap_or((0, u64::MAX));
+        let budget = if load >= CRITICAL_LOAD {
+            3
+        } else if load >= PRESSURE_LOAD || free < PRESSURE_FREE {
+            1
         } else {
-            if self.settings.read().unwrap().sleep_tabs {
-                let _ = self.tabs[pos].view.set_memory_usage_level(MemoryUsageLevel::Low);
-            }
-            self.sync();
+            0
+        };
+        let mut drop: Vec<usize> = idle.iter().take(budget).copied().collect();
+        drop.extend(idle.iter().skip(budget).filter(|&&i| self.tabs[i].seen.elapsed() >= DISCARD_FORGOTTEN));
+        if drop.is_empty() {
+            return;
         }
+        for i in drop {
+            let t = &mut self.tabs[i];
+            t.view = None; // dropping the WebView frees its renderer process
+            t.loading = false;
+        }
+        self.sync();
     }
 
     fn pinned_count(&self) -> usize {
@@ -600,20 +739,29 @@ impl App {
         self.hide_popover();
         let sleep = self.settings.read().unwrap().sleep_tabs;
         let r = self.content_rect();
-        let new = &self.tabs[idx].view;
-        let _ = new.set_memory_usage_level(MemoryUsageLevel::Normal);
-        let _ = new.set_bounds(r);
-        let _ = new.set_visible(true);
+        if let Some(prev) = self.tabs.get_mut(self.active) {
+            prev.seen = Instant::now();
+        }
+        self.ensure_loaded(idx);
+        self.tabs[idx].seen = Instant::now();
+        if let Some(new) = &self.tabs[idx].view {
+            let _ = new.set_memory_usage_level(MemoryUsageLevel::Normal);
+            let _ = new.set_bounds(r);
+            let _ = new.set_visible(true);
+        }
         for (i, t) in self.tabs.iter().enumerate() {
             if i != idx {
-                let _ = t.view.set_visible(false);
+                let Some(v) = &t.view else { continue };
+                let _ = v.set_visible(false);
                 if sleep && !t.audio {
-                    let _ = t.view.set_memory_usage_level(MemoryUsageLevel::Low);
+                    let _ = v.set_memory_usage_level(MemoryUsageLevel::Low);
                 }
             }
         }
         self.active = idx;
-        let _ = self.tabs[idx].view.focus();
+        if let Some(v) = &self.tabs[idx].view {
+            let _ = v.focus();
+        }
         self.sync();
     }
 
@@ -838,19 +986,57 @@ impl App {
             "account": acc.map(|a| json!({"name": a.name, "kind": a.kind, "created": a.created})),
             "shield": self.shield_json(),
             "dataDir": self.data_dir.to_string_lossy(),
+            "installed": self.installed.is_some(),
+            "isDefault": self.installed.is_some() && integrate::is_default(),
+            "update": {
+                "busy": self.update.busy,
+                "ready": self.update.ready.as_ref().map(|r| &r.0),
+                "error": self.update.error,
+                "upToDate": self.update.up_to_date,
+            },
         })
+    }
+
+    // ------------------------------------------------------------ updates
+
+    fn start_update_check(&mut self) {
+        if self.installed.is_none() || self.update.busy || self.update.ready.is_some() {
+            return;
+        }
+        self.update.busy = true;
+        self.update.error.clear();
+        self.update.checked = Some(Instant::now());
+        let dir = self.data_dir.join("update");
+        let p = self.proxy.clone();
+        std::thread::spawn(move || {
+            let res = update::check_and_download(env!("CARGO_PKG_VERSION"), &dir);
+            let _ = p.send_event(UserEvent::Update(res));
+        });
+        self.push_internal("runtime", &self.runtime_json());
+    }
+
+    /// Swap in a downloaded update; it runs from the next start. Called on every exit path.
+    fn install_pending_update(&mut self) {
+        let (Some(exe), Some((ver, path))) = (self.installed.clone(), self.update.ready.take()) else { return };
+        if let Err(e) = update::install(&exe, &path) {
+            native::log::warn(&format!("update {ver} not installed: {e}"));
+        }
     }
 
     fn push_internal(&self, what: &str, data: &Value) {
         let js = format!("window.otiumData && otiumData({}, {})", json!(what), settings::script_json(data));
         for t in self.tabs.iter().filter(|t| util::is_internal(&t.url)) {
-            let _ = t.view.evaluate_script(&js);
+            if let Some(v) = &t.view {
+                let _ = v.evaluate_script(&js);
+            }
         }
     }
 
     fn reply(&self, idx: usize, what: &str, data: &Value) {
         let js = format!("window.otiumData && otiumData({}, {})", json!(what), settings::script_json(data));
-        let _ = self.tabs[idx].view.evaluate_script(&js);
+        if let Some(v) = &self.tabs[idx].view {
+            let _ = v.evaluate_script(&js);
+        }
     }
 
     fn toast(&self, idx: usize, msg: &str, ok: bool) {
@@ -866,13 +1052,13 @@ impl App {
 
         if new.site_theme != old.site_theme {
             let _ = self.chrome.set_theme(theme_of(&new));
-            for t in &self.tabs {
-                let _ = t.view.set_theme(theme_of(&new));
+            for v in self.tabs.iter().filter_map(|t| t.view.as_ref()) {
+                let _ = v.set_theme(theme_of(&new));
             }
         }
         if new.sleep_tabs != old.sleep_tabs && !new.sleep_tabs {
-            for t in &self.tabs {
-                let _ = t.view.set_memory_usage_level(MemoryUsageLevel::Normal);
+            for v in self.tabs.iter().filter_map(|t| t.view.as_ref()) {
+                let _ = v.set_memory_usage_level(MemoryUsageLevel::Normal);
             }
         }
         {
@@ -885,8 +1071,8 @@ impl App {
             "window.otiumApply && otiumApply({})",
             settings::script_json(&new.payload(self.force_dark_active))
         );
-        for t in self.tabs.iter().filter(|t| util::is_internal(&t.url)) {
-            let _ = t.view.evaluate_script(&js);
+        for v in self.tabs.iter().filter(|t| util::is_internal(&t.url)).filter_map(|t| t.view.as_ref()) {
+            let _ = v.evaluate_script(&js);
         }
         self.sync();
     }
@@ -894,10 +1080,15 @@ impl App {
     /// Restart the browser, optionally running a vault operation in between.
     fn restart_with(&mut self, vault_op: Option<(&str, &str, &str)>) {
         self.save_session();
-        if let Ok(exe) = std::env::current_exe() {
+        let exe = self.installed.clone().or_else(|| std::env::current_exe().ok());
+        self.install_pending_update();
+        if let Some(exe) = exe {
             let mut cmd = std::process::Command::new(exe);
             if let Some((op, path, _)) = vault_op {
                 cmd.args(["--vault", op, path]).stdin(std::process::Stdio::piped());
+            } else {
+                // wait for this process to release the profile instead of handing over to it
+                cmd.arg("--restart");
             }
             if let Ok(mut child) = cmd.spawn() {
                 if let (Some((_, _, secret)), Some(mut stdin)) = (vault_op, child.stdin.take()) {
@@ -967,8 +1158,8 @@ impl App {
     }
 
     fn eval_current(&self, js: &str) {
-        if let Some(t) = self.current() {
-            let _ = t.view.evaluate_script(js);
+        if let Some(v) = self.current().and_then(|t| t.view.as_ref()) {
+            let _ = v.evaluate_script(js);
         }
     }
 
@@ -976,7 +1167,9 @@ impl App {
         if let Some(t) = self.tabs.get_mut(self.active) {
             t.zoom = (z * 10.0).round() / 10.0;
             t.zoom = t.zoom.clamp(0.3, 3.0);
-            let _ = t.view.zoom(t.zoom);
+            if let Some(v) = &t.view {
+                let _ = v.zoom(t.zoom);
+            }
         }
         self.refresh_popover("menu");
     }
@@ -1015,13 +1208,13 @@ impl App {
                 self.set_fullscreen(false)
             }
             "devtools" => {
-                if let Some(t) = self.current() {
-                    t.view.open_devtools()
+                if let Some(v) = self.current().and_then(|t| t.view.as_ref()) {
+                    v.open_devtools()
                 }
             }
             "reload" => {
-                if let Some(t) = self.current() {
-                    let _ = t.view.reload();
+                if let Some(v) = self.current().and_then(|t| t.view.as_ref()) {
+                    let _ = v.reload();
                 }
             }
             "toggle_sidebar" => {
@@ -1053,11 +1246,21 @@ impl App {
         }
     }
 
-    fn navigate_tab(&self, idx: usize, text: &str) {
+    fn navigate_tab(&mut self, idx: usize, text: &str) {
         let tpl = self.settings.read().unwrap().search_template();
-        let t = &self.tabs[idx];
-        let _ = t.view.load_url(&util::resolve_input(text, &tpl));
-        let _ = t.view.focus();
+        let url = util::resolve_input(text, &tpl);
+        match &self.tabs[idx].view {
+            Some(v) => {
+                let _ = v.load_url(&url);
+            }
+            None => {
+                self.tabs[idx].url = url;
+                self.ensure_loaded(idx);
+            }
+        }
+        if let Some(v) = &self.tabs[idx].view {
+            let _ = v.focus();
+        }
     }
 
     fn tab_action(&mut self, id: u32, action: &str) {
@@ -1077,7 +1280,9 @@ impl App {
             "mute" => {
                 let t = &mut self.tabs[i];
                 t.muted = !t.muted;
-                native::set_muted(&t.view, t.muted);
+                if let Some(v) = &t.view {
+                    native::set_muted(v, t.muted);
+                }
                 self.sync();
             }
             "duplicate" => {
@@ -1085,9 +1290,15 @@ impl App {
                 self.active = i;
                 self.open_tab(&url, true, private);
             }
-            "reload" => {
-                let _ = self.tabs[i].view.reload();
-            }
+            "reload" => match &self.tabs[i].view {
+                Some(v) => {
+                    let _ = v.reload();
+                }
+                None => {
+                    self.ensure_loaded(i);
+                    self.sync();
+                }
+            },
             "close" => self.close_tab(id),
             "close_others" => {
                 let ids: Vec<u32> = self.tabs.iter().filter(|t| t.id != id && !t.pinned).map(|t| t.id).collect();
@@ -1129,8 +1340,8 @@ impl App {
             "find" => {
                 self.hide_popover();
                 // WebView2 has its own find bar bound to Ctrl+F inside the page
-                if let Some(t) = self.current() {
-                    let _ = t.view.focus();
+                if let Some(v) = self.current().and_then(|t| t.view.as_ref()) {
+                    let _ = v.focus();
                 }
                 self.eval_current("document.dispatchEvent(new KeyboardEvent('keydown',{key:'f',ctrlKey:true}))");
             }
@@ -1180,13 +1391,13 @@ impl App {
                 }
             }
             Cmd::Back => {
-                if let Some(t) = self.current() {
-                    let _ = t.view.go_back();
+                if let Some(v) = self.current().and_then(|t| t.view.as_ref()) {
+                    let _ = v.go_back();
                 }
             }
             Cmd::Forward => {
-                if let Some(t) = self.current() {
-                    let _ = t.view.go_forward();
+                if let Some(v) = self.current().and_then(|t| t.view.as_ref()) {
+                    let _ = v.go_forward();
                 }
             }
             Cmd::Reload => self.shortcut("reload"),
@@ -1228,8 +1439,8 @@ impl App {
             Cmd::Set { patch } => self.apply_patch(&patch),
             Cmd::Restart => self.restart_with(None),
             Cmd::ClearData => {
-                if let Some(t) = self.current() {
-                    let _ = t.view.clear_all_browsing_data();
+                if let Some(v) = self.current().and_then(|t| t.view.as_ref()) {
+                    let _ = v.clear_all_browsing_data();
                 }
                 if let Some(s) = &self.store {
                     s.clear_history();
@@ -1483,6 +1694,26 @@ impl App {
                     Err(e) => self.toast(reply_to, &e, false),
                 }
             }
+            Cmd::MakeDefault => {
+                if let Some(exe) = &self.installed {
+                    integrate::ensure_registered(exe, env!("CARGO_PKG_VERSION"));
+                    integrate::open_default_settings();
+                } else {
+                    self.toast(reply_to, "Доступно только в установленной версии OTIUM", false);
+                }
+            }
+            Cmd::UpdateCheck => {
+                if self.installed.is_none() {
+                    return self.toast(reply_to, "Обновления работают только в установленной версии OTIUM", false);
+                }
+                self.update.up_to_date = false;
+                self.start_update_check();
+            }
+            Cmd::UpdateNow => {
+                if self.update.ready.is_some() {
+                    self.restart_with(None);
+                }
+            }
             _ => {}
         }
     }
@@ -1560,7 +1791,9 @@ impl App {
                     let css = engine.cosmetic_css(&self.tabs[i].url, &classes[..classes.len().min(3000)], &ids[..ids.len().min(3000)]);
                     if !css.is_empty() {
                         let js = format!("window.__otiumCss && __otiumCss({})", json!(css));
-                        let _ = self.tabs[i].view.evaluate_script(&js);
+                        if let Some(v) = &self.tabs[i].view {
+                            let _ = v.evaluate_script(&js);
+                        }
                     }
                 }
             }
@@ -1571,7 +1804,9 @@ impl App {
             Cmd::ShieldUpdate if internal => self.handle_cmd(Cmd::ShieldUpdate),
             Cmd::ExtOpen { id, page } if internal => self.handle_cmd(Cmd::ExtOpen { id, page }),
             Cmd::ClearData if internal => {
-                let _ = self.tabs[i].view.clear_all_browsing_data();
+                if let Some(v) = &self.tabs[i].view {
+                    let _ = v.clear_all_browsing_data();
+                }
                 if let Some(s) = &self.store {
                     s.clear_history();
                 }
@@ -1583,7 +1818,42 @@ impl App {
 
     fn handle(&mut self, ev: UserEvent, flow: &mut ControlFlow) {
         match ev {
-            UserEvent::Exit => *flow = ControlFlow::Exit,
+            UserEvent::Exit => {
+                self.install_pending_update();
+                *flow = ControlFlow::Exit
+            }
+            UserEvent::Tick => {
+                self.discard_idle();
+                let due = match self.update.checked {
+                    Some(t) => t.elapsed() >= UPDATE_EVERY,
+                    None => self.started.elapsed() >= UPDATE_FIRST,
+                };
+                if due && self.cfg().auto_update {
+                    self.start_update_check();
+                }
+            }
+            UserEvent::Remote(msg) => {
+                self.window.set_minimized(false);
+                self.window.set_focus();
+                let url = msg.trim();
+                // only web pages and local files; never internal pages or other schemes
+                if ["http://", "https://", "file:///"].iter().any(|s| url.starts_with(s)) && !util::is_internal(url) {
+                    self.open_tab(url, true, false);
+                    self.save_session();
+                }
+            }
+            UserEvent::Update(res) => {
+                self.update.busy = false;
+                match res {
+                    Ok(Some(r)) => {
+                        self.update.ready = Some(r);
+                        self.update.up_to_date = false;
+                    }
+                    Ok(None) => self.update.up_to_date = true,
+                    Err(e) => self.update.error = e,
+                }
+                self.push_internal("runtime", &self.runtime_json());
+            }
             UserEvent::Chrome(msg) => {
                 if let Ok(cmd) = serde_json::from_str::<Cmd>(&msg) {
                     self.handle_cmd(cmd);
@@ -1750,6 +2020,28 @@ fn full_rect(window: &Window) -> Rect {
     }
 }
 
+/// The link this launch should open: `--single-argument <url>` (how Windows passes links and
+/// files to a registered browser) or a plain first argument. Files become file:/// URLs.
+fn launch_target(args: &[String]) -> Option<String> {
+    let raw = match args.iter().position(|a| a == "--single-argument") {
+        Some(i) => args[i + 1..].join(" "),
+        None => args.iter().skip(1).find(|a| !a.starts_with("--"))?.clone(),
+    };
+    let raw = raw.trim().trim_matches('"');
+    if raw.is_empty() {
+        return None;
+    }
+    let lower = raw.to_ascii_lowercase();
+    if lower.starts_with("http://") || lower.starts_with("https://") || lower.starts_with("file:///") {
+        return Some(raw.to_string());
+    }
+    let p = Path::new(raw);
+    if p.is_absolute() && p.exists() {
+        return url::Url::from_file_path(p).ok().map(|u| u.to_string());
+    }
+    None
+}
+
 /// `otium --vault export|import <path>` with the secret on stdin: runs before any webview exists.
 fn run_vault_op(args: &[String]) {
     let (Some(op), Some(path)) = (args.get(2), args.get(3)) else { return };
@@ -1783,6 +2075,19 @@ fn main() -> wry::Result<()> {
         return Ok(());
     }
 
+    // one browser per user: hand the link to the running one, or wait for it to exit on restart
+    let restarting = args.iter().skip(1).any(|a| a == "--restart" || a == "--vault");
+    let target = if args.get(1).map(String::as_str) == Some("--vault") { None } else { launch_target(&args) };
+    if !instance::claim(if restarting { 20_000 } else { 0 }) {
+        if instance::forward(target.as_deref().unwrap_or("")) {
+            return Ok(());
+        }
+        // the running one is shutting down: start once it's gone
+        if !instance::claim(8_000) {
+            return Ok(());
+        }
+    }
+
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
     let proxy = event_loop.create_proxy();
 
@@ -1809,7 +2114,18 @@ fn main() -> wry::Result<()> {
     let builder = builder.with_undecorated_shadow(true);
     let window = builder.build(&event_loop).expect("failed to create window");
 
-    let mut app = App::new(window, proxy, session)?;
+    let tick = proxy.clone();
+    let remote = proxy.clone();
+    let mut app = App::new(window, proxy, session, target)?;
+    instance::serve(move |msg| {
+        let _ = remote.send_event(UserEvent::Remote(msg));
+    });
+    std::thread::spawn(move || loop {
+        std::thread::sleep(TICK);
+        if tick.send_event(UserEvent::Tick).is_err() {
+            break;
+        }
+    });
     app.window.set_visible(true);
 
     event_loop.run(move |event, _, flow| {
@@ -1818,6 +2134,7 @@ fn main() -> wry::Result<()> {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => {
                     app.save_session();
+                    app.install_pending_update();
                     *flow = ControlFlow::Exit;
                 }
                 WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => app.relayout(),

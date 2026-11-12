@@ -1,0 +1,16 @@
+[package]
+name = "otium-signer"
+version = "0.1.0"
+edition = "2021"
+description = "Signs OTIUM releases for the built-in updater (maintainer tool, not shipped)"
+publish = false
+
+[[bin]]
+name = "otium-sign"
+path = "src/main.rs"
+
+[dependencies]
+ed25519-dalek = "2"
+sha2 = "0.10"
+getrandom = "0.2"
+serde_json = "1"

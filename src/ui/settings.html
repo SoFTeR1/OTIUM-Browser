@@ -315,6 +315,7 @@
     <section id="system">
       <h2>Запуск и производительность</h2>
       <div class="card">
+        <div class="item"><div class="txt"><div class="ttl">Браузер по умолчанию</div><div class="sub" id="defSub">Открывать ссылки из других приложений в OTIUM</div></div><button class="btn pri" id="makeDefault">Сделать основным</button></div>
         <div class="item"><div class="txt"><div class="ttl">Восстанавливать вкладки</div><div class="sub">Открывать вкладки прошлого сеанса при запуске</div></div><label class="sw"><input type="checkbox" data-key="restore_session"><i></i></label></div>
         <div class="item"><div class="txt"><div class="ttl">Усыплять фоновые вкладки</div><div class="sub">Неактивные вкладки освобождают память, пока вы на них не вернётесь</div></div><label class="sw"><input type="checkbox" data-key="sleep_tabs"><i></i></label></div>
       </div>
@@ -331,6 +332,8 @@
       <h2>О браузере</h2>
       <div class="card">
         <div class="about"><div class="ring"></div><div><b style="font-size:16px">OTIUM</b><div class="sub" style="color:var(--muted)" id="ver"></div></div></div>
+        <div class="item" style="border-top:1px solid var(--line)"><div class="txt"><div class="ttl">Обновления</div><div class="sub" id="updSub"></div></div><button class="btn" id="updBtn">Проверить</button></div>
+        <div class="item"><div class="txt"><div class="ttl">Обновлять автоматически</div><div class="sub">Новая версия скачивается в фоне, проверяется по цифровой подписи и ставится при следующем запуске</div></div><label class="sw"><input type="checkbox" data-key="auto_update"><i></i></label></div>
         <div class="keys" style="border-top:1px solid var(--line)">
           <span>Новая вкладка</span><span><kbd>Ctrl</kbd> <kbd>T</kbd></span>
           <span>Закрыть вкладку</span><span><kbd>Ctrl</kbd> <kbd>W</kbd></span>
@@ -386,6 +389,10 @@
     if (confirm('Очистить все данные браузера? Вы выйдете из всех аккаунтов на сайтах.')) { send({ cmd: 'clear_data' }); toast('Данные очищены'); }
   });
   $('restart').addEventListener('click', () => send({ cmd: 'restart' }));
+  $('makeDefault').addEventListener('click', () => send({ cmd: 'make_default' }));
+  $('updBtn').addEventListener('click', () => send({ cmd: RT && RT.update.ready ? 'update_now' : 'update_check' }));
+  // the default-browser choice is made in Windows Settings; refresh when the user comes back
+  window.addEventListener('focus', () => send({ cmd: 'data', what: 'runtime' }));
 
   function render() {
     const s = S.settings, r = document.documentElement.style;
@@ -478,6 +485,21 @@
       $('accTitle').textContent = a.name;
       $('accSub').textContent = 'Защита: ' + (KIND[a.kind] || a.kind) + ' · создан ' + new Date(a.created * 1000).toLocaleDateString('ru-RU');
     }
+    // default browser
+    $('makeDefault').style.display = RT.installed && !RT.isDefault ? '' : 'none';
+    $('defSub').textContent = !RT.installed ? 'Доступно в установленной версии OTIUM'
+      : RT.isDefault ? 'OTIUM — браузер по умолчанию. Ссылки из других приложений открываются здесь'
+      : 'Откроются параметры Windows — там нажмите «Установить по умолчанию»';
+    // updates
+    const u = RT.update;
+    $('updSub').innerHTML = !RT.installed ? 'Доступны в установленной версии OTIUM'
+      : u.busy ? '<span class="busy"></span>Проверяю и загружаю…'
+      : u.ready ? 'Версия ' + esc(u.ready) + ' загружена и проверена. Установится при следующем запуске'
+      : u.error ? esc(u.error)
+      : u.upToDate ? 'Установлена последняя версия' : 'Проверяются автоматически раз в несколько часов';
+    $('updBtn').textContent = u.ready ? 'Перезапустить' : 'Проверить';
+    $('updBtn').className = u.ready ? 'btn pri' : 'btn';
+    $('updBtn').disabled = !RT.installed || u.busy;
     const sh = RT.shield;
     $('shieldLists').innerHTML = (sh.updating ? '<span class="busy"></span>Загружаю и собираю… ' : sh.ready ? '' : 'Ещё не загружены. ') + esc(sh.lists.join(' · '));
     $('shieldUpd').disabled = sh.updating;

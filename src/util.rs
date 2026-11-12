@@ -67,7 +67,7 @@ pub fn resolve_input(input: &str, search_template: &str) -> String {
     search_template.replace("%s", &q)
 }
 
-pub use crate::sys::{app_icon, message_box, today, uninstall};
+pub use crate::sys::{app_icon, memory, message_box, today, uninstall};
 
 #[cfg(test)]
 mod tests {

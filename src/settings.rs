@@ -45,6 +45,8 @@ pub struct Settings {
     pub shield_allow: Vec<String>,
     /// search-engine suggestions in the address bar
     pub suggest_remote: bool,
+    /// download signed updates from GitHub Releases and install them on restart
+    pub auto_update: bool,
 }
 
 impl Default for Settings {
@@ -69,6 +71,7 @@ impl Default for Settings {
             shield: true,
             shield_allow: Vec::new(),
             suggest_remote: true,
+            auto_update: true,
         }
     }
 }
