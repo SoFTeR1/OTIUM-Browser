@@ -125,9 +125,16 @@ pub fn is_default() -> bool {
 
 /// Open Settings → Default apps right on OTIUM's page.
 pub fn open_default_settings() {
-    let _ = std::process::Command::new("explorer.exe")
-        .arg("ms-settings:defaultapps?registeredAppUser=OTIUM%20Browser")
-        .spawn();
+    // ShellExecute resolves the ms-settings: protocol; explorer.exe would treat it as a path
+    // (the "?" makes it invalid) and open Documents instead
+    use windows::{
+        core::{w, HSTRING},
+        Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL},
+    };
+    let uri = HSTRING::from("ms-settings:defaultapps?registeredAppUser=OTIUM%20Browser");
+    unsafe {
+        ShellExecuteW(None, w!("open"), &uri, None, None, SW_SHOWNORMAL);
+    }
 }
 
 fn notify_assoc_changed() {
